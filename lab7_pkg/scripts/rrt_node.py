@@ -60,6 +60,8 @@ class RRT(Node):
 
         # class attributes
         # TODO: maybe create your occupancy grid here
+        self.NEIGHBOR_RADIUS = 10.0
+        self.GOAL_DISTANCE = 10.0
 
     def scan_callback(self, scan_msg):
         """
@@ -150,7 +152,9 @@ class RRT(Node):
         Returns:
             close_enough (bool): true if node is close enoughg to the goal
         """
-        return False
+
+        # Check if the pythagorean distance is less than the paramter GOAL_DISTANCE
+        return math.sqrt((latest_added_node.x - goal_x)**2 + (latest_added_node.y - goal_y)**2) <= self.GOAL_DISTANCE
 
     def find_path(self, tree, latest_added_node):
         """
@@ -164,6 +168,15 @@ class RRT(Node):
             path ([]): valid path as a list of Nodes
         """
         path = []
+        curr_node = latest_added_node
+
+        # Keep back tracking until we find the root
+        while curr_node is not None and not curr_node.is_root:
+            path.append(curr_node)
+            curr_node = tree[curr_node.parent]
+
+        path.reverse() # Reverse since we want the root at the start
+
         return path
 
 
@@ -178,7 +191,12 @@ class RRT(Node):
         Returns:
             cost (float): the cost value of the node
         """
-        return 0
+
+        # Since parent node has a calculated cost just add that to the new line cost
+        if tree[node.parent] is None or tree[node.parent].is_root:
+            return 0.0
+        else:
+            return tree[node.parent.cost] + self.line_cost(node, tree[node.parent])
 
     def line_cost(self, n1, n2):
         """
@@ -190,7 +208,9 @@ class RRT(Node):
         Returns:
             cost (float): the cost value of the line
         """
-        return 0
+
+        # cost calculated using pythagorean distance between the points
+        return math.sqrt((n1.x - n2.x)**2 + (n1.y - n2.y)**2)
 
     def near(self, tree, node):
         """
@@ -202,7 +222,12 @@ class RRT(Node):
         Returns:
             neighborhood ([]): neighborhood of nodes as a list of Nodes
         """
+
         neighborhood = []
+        for other in tree:
+            if self.line_cost(node, other) <= self.NEIGHBOR_RADIUS and node is not other:
+                neighborhood.append(other)
+
         return neighborhood
 
 def main(args=None):
