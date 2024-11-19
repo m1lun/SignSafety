@@ -117,6 +117,23 @@ class RRT(Node):
 
         """
 
+        # Assume RRT
+
+        count = 0
+
+        while True:
+            x_rand = self.sample() # Random node
+            x_nearest = self.nearest(graph, x_rand) # Nearest Node already in graph
+            x_new = self.steer(x_nearest, x_rand) # Point to steer in between
+        
+            if(self.check_collision(x_new, x_nearest)): # Ensure path from existing to new is free
+                # Add edge
+
+            if self.is_goal(x_new, self.goal_node):
+                break
+            
+            path = self.find_path(graph, x_new)
+            lookahead = self.point
         return None
 
     def sample(self):
@@ -201,7 +218,15 @@ class RRT(Node):
             collision (bool): whether the path between the two nodes are in collision
                               with the occupancy grid
         """
-        return True
+
+        path = self.find_path(nearest_node, new_node)
+
+        # Check each node along the path and if occupied, return true
+        for node in path:
+            if OccupancyGrid[node.x, node.y]:
+                return True
+
+        return False
 
     def is_goal(self, latest_added_node, goal_x, goal_y):
         """
