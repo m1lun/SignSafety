@@ -180,7 +180,6 @@ class RRT(Node):
         return path
 
 
-
     # The following methods are needed for RRT* and not RRT
     def cost(self, tree, node):
         """
