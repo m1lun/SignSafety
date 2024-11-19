@@ -57,11 +57,21 @@ class RRT(Node):
 
         # publishers
         # TODO: create a drive message publisher, and other publishers that you might need
+        self.publisher_ = self.create_publisher(
+            AckermannDriveStamped,
+            drive_topic,
+            10)
 
         # class attributes
         # TODO: maybe create your occupancy grid here
         self.NEIGHBOR_RADIUS = 10.0
         self.GOAL_DISTANCE = 10.0
+        self.grid_size = 20  # Grid will cover 20 x 200
+        self.grid_origin_x = -10  
+        self.grid_origin_y = -10
+
+        # Create a numpy array to represent the occupancy grid
+        self.occupancy_grid = np.zeros((self.grid_size),(self.grid_size))
 
     def scan_callback(self, scan_msg):
         """
@@ -72,6 +82,29 @@ class RRT(Node):
         Returns:
 
         """
+        # Clear the grid
+        self.occupancy_grid.fill(0)
+        
+        # Iterate through the laser scan data
+        angle_min = scan_msg.angle_min
+        angle_increment = scan_msg.angle_increment
+
+        for i, range_reading in enumerate(scan_msg.ranges):
+            if range_reading < scan_msg.range_max:
+                # Calculate the angle of the laser ray
+                angle = angle_min + i * angle_increment
+
+                # Convert polar to cartesian coordinates (relative to the car)
+                x = range_reading * math.cos(angle)
+                y = range_reading * math.sin(angle)
+
+                # Convert to grid coordinates
+                grid_x = (x - self.grid_origin_x)
+                grid_y = (y - self.grid_origin_y)
+
+                # Mark the grid cell as occupied
+                if 0 <= grid_x < self.occupancy_grid.shape[0] and 0 <= grid_y < self.occupancy_grid.shape[1]:
+                    self.occupancy_grid[grid_x, grid_y] = 1
 
     def pose_callback(self, pose_msg):
         """
@@ -95,9 +128,15 @@ class RRT(Node):
             (x, y) (float float): a tuple representing the sampled point
 
         """
-        x = None
-        y = None
+        # Parameters we can adjust for the sampling
+        x_min, x_max = -10, 10  
+        y_min, y_max = -10, 10  
+        
+        x = np.random.uniform(x_min, x_max)
+        y = np.random.uniform(y_min, y_max)
+        
         return (x, y)
+
 
     def nearest(self, tree, sampled_point):
         """
@@ -109,7 +148,15 @@ class RRT(Node):
         Returns:
             nearest_node (int): index of neareset node on the tree
         """
-        nearest_node = 0
+        nearest_node = None
+        min_distance = float('inf')
+        
+        for node in tree:
+            distance = math.sqrt((node.x - sampled_point[0])**2 + (node.y - sampled_point[1])**2)
+            if distance < min_distance:
+                min_distance = distance
+                nearest_node = node
+        
         return nearest_node
 
     def steer(self, nearest_node, sampled_point):
@@ -123,7 +170,23 @@ class RRT(Node):
         Returns:
             new_node (Node): new node created from steering
         """
-        new_node = None
+        step_size = 0.1
+        direction = np.array(sampled_point) - np.array([nearest_node.x, nearest_node.y])
+        distance = np.linalg.norm(direction)
+        if distance == 0:
+            return nearest_node  # No movement
+        
+        # Normalize direction and scale by step_size
+        direction = (direction / distance) * min(step_size, distance)
+        new_x = nearest_node.x + direction[0]
+        new_y = nearest_node.y + direction[1]
+        
+        # Create new node
+        new_node = Node()
+        new_node.x = new_x
+        new_node.y = new_y
+        new_node.parent = nearest_node  # Link to the parent node
+        
         return new_node
 
     def check_collision(self, nearest_node, new_node):
