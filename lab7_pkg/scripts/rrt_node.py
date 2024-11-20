@@ -69,9 +69,39 @@ class RRT(Node):
         self.grid_size = 20  # Grid will cover 20 x 200
         self.grid_origin_x = -10  
         self.grid_origin_y = -10
-
+        self.x_min, self.x_max = -10, 10
+        self.y_min, self.y_max = -10, 10
+        self.lookahead_distance = 1  # Adjust based on testing
+        
         # Create a numpy array to represent the occupancy grid
         self.occupancy_grid = np.zeros((self.grid_size),(self.grid_size))
+        self.load_waypoints()
+
+    def load_waypoints(self):
+        # Load waypoints from a .csv file
+        # The CSV file should have columns: Position, Orientation, Angle (no headers)
+        waypoint_file = '/sim_ws/src/lab-7-slam-crashout/pure_pursuit/scripts/pose_data.csv'  # Adjust the path to your file
+        try:
+            with open(waypoint_file, newline='') as csvfile:
+                waypoint_reader = csv.reader(csvfile)
+                self.waypoints = []
+                
+                for row in waypoint_reader:
+                    if len(row) >= 3:  # Ensure there are enough columns
+                        # Extract the position (first column) and convert it to a tuple (x, y)
+                        position_str = row[0]  # Position is in the form "(x, y, z)"
+                        position_str = position_str.strip('()')  # Remove parentheses
+                        position_values = position_str.split(',')  # Split the string by commas
+                        if len(position_values) >= 2:
+                            x = float(position_values[0].strip())  # Convert x to float
+                            y = float(position_values[1].strip())  # Convert y to float
+                            self.waypoints.append((x, y))  # Append (x, y) tuple to the waypoints list
+                            
+                            # Log the x and y values
+            #                 self.get_logger().info(f'Loaded waypoint: x={x}, y={y}')
+
+            # self.get_logger().info(f'Loaded {len(self.waypoints)} waypoints.')
+            self.visualize_waypoints()
 
     def scan_callback(self, scan_msg):
         """
@@ -117,24 +147,48 @@ class RRT(Node):
 
         """
 
+        tree = [Node()] 
+
+        x_init = Node()
+        x_init.x = pose_msg.pose.position.x
+        x_init.y = pose_msg.pose.position.y
+        tree.append(x_init)
+
+
         # Assume RRT
-
-        count = 0
-
         while True:
             x_rand = self.sample() # Random node
-            x_nearest = self.nearest(graph, x_rand) # Nearest Node already in graph
+            x_nearest = self.nearest(tree, x_rand) # Nearest Node already in graph
             x_new = self.steer(x_nearest, x_rand) # Point to steer in between
         
             if(self.check_collision(x_new, x_nearest)): # Ensure path from existing to new is free
-                # Add edge
-
-            if self.is_goal(x_new, self.goal_node):
-                break
+                continue
             
-            path = self.find_path(graph, x_new)
-            lookahead = self.point
-        return None
+            x_new.parent = x_nearest # Add edge
+            tree.append(x_new) # Add Vertex
+            
+            # Use lookahead distance to get goal_node
+            self.goal_node = self.find_closest_waypoint(car_x, car_y)
+
+            if self.is_goal(x_new, self.goal_node): # If our current_node actually reaches the goal
+                # Give steering message towards x_new
+                path = self.find_path(tree, x_new)
+                dx = path[0].x - x_init.x
+                dy = path[0].y - x_init.y
+                goal_distance = np.sqrt(dx**2 + dy**2)
+                curvature = 2 * dy / (goal_distance**2)
+                drive_msg = AckermannDriveStamped()
+                drive_msg.drive.steering_angle = curvature 
+                drive_msg.drive.speed = 1.0  # Set to a suitable speed
+                self.drive_pub.publish(drive_msg)
+
+    def find_closest_waypoint(self, car_x, car_y):
+        # Find the closest waypoint that's at least `lookahead_distance` away
+        for i, (wp_x, wp_y) in enumerate(self.waypoints[0:]):
+            distance = np.sqrt((wp_x - car_x)**2 + (wp_y - car_y)**2)
+            if distance >= self.lookahead_distance:
+                return i
+        return len(self.waypoints) - 1  # Return last waypoint if none found
 
     def sample(self):
         """
@@ -144,13 +198,9 @@ class RRT(Node):
         Returns:
             (x, y) (float float): a tuple representing the sampled point
 
-        """
-        # Parameters we can adjust for the sampling
-        x_min, x_max = -10, 10  
-        y_min, y_max = -10, 10  
-        
-        x = np.random.uniform(x_min, x_max)
-        y = np.random.uniform(y_min, y_max)
+        """        
+        x = np.random.uniform(self.x_min, self.x_max)
+        y = np.random.uniform(self.y_min, self.y_max)
         
         return (x, y)
 
@@ -197,13 +247,7 @@ class RRT(Node):
         direction = (direction / distance) * min(step_size, distance)
         new_x = nearest_node.x + direction[0]
         new_y = nearest_node.y + direction[1]
-        
-        # Create new node
-        new_node = Node()
-        new_node.x = new_x
-        new_node.y = new_y
-        new_node.parent = nearest_node  # Link to the parent node
-        
+                
         return new_node
 
     def check_collision(self, nearest_node, new_node):
@@ -316,6 +360,41 @@ class RRT(Node):
                 neighborhood.append(other)
 
         return neighborhood
+    def visualize_waypoints(self):
+        marker = Marker()
+        marker.header.frame_id = 'map'
+        marker.header.stamp = self.get_clock().now().to_msg()  # Set current timestamp
+        marker.type = Marker.POINTS
+        marker.ns = "basic_shapes"
+        marker.id = 0
+
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+
+        marker.scale.x = 0.2
+        marker.scale.y = 0.2
+        marker.scale.z = 0.2
+        # marker.lifetime = Duration(sec=0, nanosec=0)  # Lifetime of zero (persistent marker)
+
+        for i, (x, y) in enumerate(self.waypoints):
+            p = Point()
+            p.x = x
+            p.y = y
+            marker.points.append(p)
+            if i == self.current_waypoint_index:
+                marker.color.r = 0.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
+            else:
+                marker.color.r = 1.0
+                marker.color.g = 0.0
+                marker.color.b = 0.0
+            marker.color.a = 1.0
+
+        self.waypoint_pub.publish(marker)
 
 def main(args=None):
     rclpy.init(args=args)
