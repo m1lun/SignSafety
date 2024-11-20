@@ -153,7 +153,9 @@ class RRT(Node):
         x_init.x = pose_msg.pose.position.x
         x_init.y = pose_msg.pose.position.y
         tree.append(x_init)
-
+        
+        # Use lookahead distance to get goal_node
+        self.goal_node = self.find_closest_waypoint(car_x, car_y)
 
         # Assume RRT
         while True:
@@ -167,9 +169,6 @@ class RRT(Node):
             x_new.parent = x_nearest # Add edge
             tree.append(x_new) # Add Vertex
             
-            # Use lookahead distance to get goal_node
-            self.goal_node = self.find_closest_waypoint(car_x, car_y)
-
             if self.is_goal(x_new, self.goal_node): # If our current_node actually reaches the goal
                 # Give steering message towards x_new
                 path = self.find_path(tree, x_new)
@@ -181,7 +180,8 @@ class RRT(Node):
                 drive_msg.drive.steering_angle = curvature 
                 drive_msg.drive.speed = 1.0  # Set to a suitable speed
                 self.drive_pub.publish(drive_msg)
-
+                break
+            
     def find_closest_waypoint(self, car_x, car_y):
         # Find the closest waypoint that's at least `lookahead_distance` away
         for i, (wp_x, wp_y) in enumerate(self.waypoints[0:]):
