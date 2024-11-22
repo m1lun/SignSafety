@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 This file contains the class definition for tree nodes and RRT
 Before you start, please read: https://arxiv.org/pdf/1105.1186.pdf
@@ -16,26 +17,29 @@ from geometry_msgs.msg import Point
 from nav_msgs.msg import Odometry
 from ackermann_msgs.msg import AckermannDriveStamped, AckermannDrive
 from nav_msgs.msg import OccupancyGrid
-
+from visualization_msgs.msg import Marker
+import csv
 # TODO: import as you need
 
 # class def for tree nodes
 # It's up to you if you want to use this
-class Node(object):
+class TreeNode:
     def __init__(self):
         self.x = None
         self.y = None
         self.parent = None
-        self.cost = None # only used in RRT*
+        self.cost = None  # only used in RRT*
         self.is_root = False
 
 # class def for RRT
 class RRT(Node):
     def __init__(self):
+        super().__init__('rrt_node')
         # topics, not saved as attributes
         # TODO: grab topics from param file, you'll need to change the yaml file
         pose_topic = "ego_racecar/odom"
         scan_topic = "/scan"
+        drive_topic = "/drive"
 
         # you could add your own parameters to the rrt_params.yaml file,
         # and get them here as class attributes as shown above.
@@ -46,14 +50,12 @@ class RRT(Node):
             pose_topic,
             self.pose_callback,
             1)
-        self.pose_sub_
 
         self.scan_sub_ = self.create_subscription(
             LaserScan,
             scan_topic,
             self.scan_callback,
             1)
-        self.scan_sub_
 
         # publishers
         # TODO: create a drive message publisher, and other publishers that you might need
@@ -61,26 +63,30 @@ class RRT(Node):
             AckermannDriveStamped,
             drive_topic,
             10)
+        
+        # # For visualization in RViz
+        self.waypoint_pub = self.create_publisher(
+            Marker, '/waypoints_marker', 10)
 
         # class attributes
         # TODO: maybe create your occupancy grid here
         self.NEIGHBOR_RADIUS = 10.0
         self.GOAL_DISTANCE = 10.0
-        self.grid_size = 20  # Grid will cover 20 x 200
+        self.grid_size = 20  # Grid will cover 20 x 20
         self.grid_origin_x = -10  
         self.grid_origin_y = -10
         self.x_min, self.x_max = -10, 10
         self.y_min, self.y_max = -10, 10
         self.lookahead_distance = 1  # Adjust based on testing
-        
+        self.current_waypoint_index = 0
         # Create a numpy array to represent the occupancy grid
-        self.occupancy_grid = np.zeros((self.grid_size),(self.grid_size))
+        self.occupancy_grid = np.zeros((self.grid_size, self.grid_size))
         self.load_waypoints()
 
     def load_waypoints(self):
         # Load waypoints from a .csv file
         # The CSV file should have columns: Position, Orientation, Angle (no headers)
-        waypoint_file = '/sim_ws/src/lab-7-slam-crashout/pure_pursuit/scripts/pose_data.csv'  # Adjust the path to your file
+        waypoint_file = '/sim_ws/src/lab7-crashout/lab7_pkg/scripts/pose_data.csv'  # Adjust the path to your file
         try:
             with open(waypoint_file, newline='') as csvfile:
                 waypoint_reader = csv.reader(csvfile)
@@ -98,10 +104,15 @@ class RRT(Node):
                             self.waypoints.append((x, y))  # Append (x, y) tuple to the waypoints list
                             
                             # Log the x and y values
-            #                 self.get_logger().info(f'Loaded waypoint: x={x}, y={y}')
+                            self.get_logger().info(f'Loaded waypoint: x={x}, y={y}')
 
-            # self.get_logger().info(f'Loaded {len(self.waypoints)} waypoints.')
+            self.get_logger().info(f'Loaded {len(self.waypoints)} waypoints.')
             self.visualize_waypoints()
+
+        except FileNotFoundError:
+            self.get_logger().error(f'Waypoint file {waypoint_file} not found.')
+        except Exception as e:
+            self.get_logger().error(f'Error loading waypoints: {e}')
 
     def scan_callback(self, scan_msg):
         """
@@ -129,8 +140,8 @@ class RRT(Node):
                 y = range_reading * math.sin(angle)
 
                 # Convert to grid coordinates
-                grid_x = (x - self.grid_origin_x)
-                grid_y = (y - self.grid_origin_y)
+                grid_x = int((x - self.grid_origin_x))
+                grid_y = int((y - self.grid_origin_y))
 
                 # Mark the grid cell as occupied
                 if 0 <= grid_x < self.occupancy_grid.shape[0] and 0 <= grid_y < self.occupancy_grid.shape[1]:
@@ -147,29 +158,31 @@ class RRT(Node):
 
         """
 
-        tree = [Node()] 
+        tree = [TreeNode()] 
 
-        x_init = Node()
+        x_init = TreeNode()
         x_init.x = pose_msg.pose.position.x
         x_init.y = pose_msg.pose.position.y
         tree.append(x_init)
         
         # Use lookahead distance to get goal_node
+        car_x = pose_msg.pose.position.x
+        car_y = pose_msg.pose.position.y
         self.goal_node = self.find_closest_waypoint(car_x, car_y)
 
         # Assume RRT
         while True:
-            x_rand = self.sample() # Random node
-            x_nearest = self.nearest(tree, x_rand) # Nearest Node already in graph
-            x_new = self.steer(x_nearest, x_rand) # Point to steer in between
+            x_rand = self.sample()  # Random node
+            x_nearest = self.nearest(tree, x_rand)  # Nearest Node already in graph
+            x_new = self.steer(x_nearest, x_rand)  # Point to steer in between
         
-            if(self.check_collision(x_new, x_nearest)): # Ensure path from existing to new is free
+            if self.check_collision(x_new, x_nearest):  # Ensure path from existing to new is free
                 continue
             
-            x_new.parent = x_nearest # Add edge
-            tree.append(x_new) # Add Vertex
+            x_new.parent = x_nearest  # Add edge
+            tree.append(x_new)  # Add Vertex
             
-            if self.is_goal(x_new, self.goal_node): # If our current_node actually reaches the goal
+            if self.is_goal(x_new, self.goal_node):  # If our current_node actually reaches the goal
                 # Give steering message towards x_new
                 path = self.find_path(tree, x_new)
                 dx = path[0].x - x_init.x
@@ -179,7 +192,7 @@ class RRT(Node):
                 drive_msg = AckermannDriveStamped()
                 drive_msg.drive.steering_angle = curvature 
                 drive_msg.drive.speed = 1.0  # Set to a suitable speed
-                self.drive_pub.publish(drive_msg)
+                self.publisher_.publish(drive_msg)
                 break
             
     def find_closest_waypoint(self, car_x, car_y):
@@ -203,7 +216,6 @@ class RRT(Node):
         y = np.random.uniform(self.y_min, self.y_max)
         
         return (x, y)
-
 
     def nearest(self, tree, sampled_point):
         """
@@ -247,6 +259,10 @@ class RRT(Node):
         direction = (direction / distance) * min(step_size, distance)
         new_x = nearest_node.x + direction[0]
         new_y = nearest_node.y + direction[1]
+        
+        new_node = TreeNode()
+        new_node.x = new_x
+        new_node.y = new_y
                 
         return new_node
 
@@ -267,7 +283,7 @@ class RRT(Node):
 
         # Check each node along the path and if occupied, return true
         for node in path:
-            if OccupancyGrid[node.x, node.y]:
+            if self.occupancy_grid[int(node.x), int(node.y)]:
                 return True
 
         return False
@@ -282,10 +298,10 @@ class RRT(Node):
             goal_x (double): x coordinate of the current goal
             goal_y (double): y coordinate of the current goal
         Returns:
-            close_enough (bool): true if node is close enoughg to the goal
+            close_enough (bool): true if node is close enough to the goal
         """
 
-        # Check if the pythagorean distance is less than the paramter GOAL_DISTANCE
+        # Check if the pythagorean distance is less than the parameter GOAL_DISTANCE
         return math.sqrt((latest_added_node.x - goal_x)**2 + (latest_added_node.y - goal_y)**2) <= self.GOAL_DISTANCE
 
     def find_path(self, tree, latest_added_node):
@@ -305,12 +321,11 @@ class RRT(Node):
         # Keep back tracking until we find the root
         while curr_node is not None and not curr_node.is_root:
             path.append(curr_node)
-            curr_node = tree[curr_node.parent]
+            curr_node = curr_node.parent
 
-        path.reverse() # Reverse since we want the root at the start
+        path.reverse()  # Reverse since we want the root at the start
 
         return path
-
 
     # The following methods are needed for RRT* and not RRT
     def cost(self, tree, node):
@@ -327,7 +342,7 @@ class RRT(Node):
         if tree[node.parent] is None or tree[node.parent].is_root:
             return 0.0
         else:
-            return tree[node.parent.cost] + self.line_cost(node, tree[node.parent])
+            return tree[node.parent].cost + self.line_cost(node, tree[node.parent])
 
     def line_cost(self, n1, n2):
         """
@@ -335,7 +350,7 @@ class RRT(Node):
 
         Args:
             n1 (Node): node at one end of the straight line
-            n2 (Node): node at the other end of the straint line
+            n2 (Node): node at the other end of the straight line
         Returns:
             cost (float): the cost value of the line
         """
@@ -360,6 +375,7 @@ class RRT(Node):
                 neighborhood.append(other)
 
         return neighborhood
+
     def visualize_waypoints(self):
         marker = Marker()
         marker.header.frame_id = 'map'
