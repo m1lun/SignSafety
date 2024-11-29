@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'car_pkg'
+package_name = 'driver_pkg'
 
 setup(
     name=package_name,
@@ -13,14 +13,14 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='mvirtual',
-    maintainer_email='milungraciastaplay@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    maintainer='sathish gopalakrishnan, farshid agharebparast',
+    maintainer_email='sathish@ece.ubc.ca, farshid@ece.ubc.ca',
+    description='follow_the_gap lab',
+    license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'car_node = car_pkg.car_node:main'
+            'reactive_node = driver_pkg.reactive_node:main',
         ],
     },
 )
