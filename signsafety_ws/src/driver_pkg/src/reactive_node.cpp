@@ -1,54 +1,53 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <ackermann_msgs/msg/ackermann_drive_stamped.hpp>
+#include <std_msgs/msg/string.hpp>
 #include <cmath>
-#include <fstream>
 #include <vector>
 #include <algorithm>
 #include <limits>
+#include <sstream>
 
-// ReactiveFollowGap Node
 class ReactiveFollowGap : public rclcpp::Node {
 public:
     ReactiveFollowGap() : Node("reactive_node") {
-        // Declare ROS 2 parameters
+        // Declare and retrieve parameters
         this->declare_parameter("fov_range", 75.0);
         this->declare_parameter("longest_range_threshold", 7.0);
         this->declare_parameter("car_width", 0.5);
         this->declare_parameter("min_speed", 0.1);
         this->declare_parameter("max_speed", 2.0);
-        this->declare_parameter("log_file_path", "/tmp/lidar_readings.log");
+        this->declare_parameter("stop_distance_threshold", 1.5);
+        this->declare_parameter("yield_speed", 0.5);
 
-        // Fetch parameters
         fov_range_ = this->get_parameter("fov_range").as_double();
         longest_range_threshold_ = this->get_parameter("longest_range_threshold").as_double();
         car_width_ = this->get_parameter("car_width").as_double();
         min_speed_ = this->get_parameter("min_speed").as_double();
         max_speed_ = this->get_parameter("max_speed").as_double();
-        log_file_path_ = this->get_parameter("log_file_path").as_string();
+        stop_distance_threshold_ = this->get_parameter("stop_distance_threshold").as_double();
+        yield_speed_ = this->get_parameter("yield_speed").as_double();
 
-        // Topics
-        auto lidarscan_topic = "/scan";
-        auto drive_topic = "/drive";
+        // Subscribe to topics and initialize publishers
+        lidar_subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+            "/scan", 10, std::bind(&ReactiveFollowGap::lidar_callback, this, std::placeholders::_1));
 
-        // LIDAR subscription
-        subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-            lidarscan_topic, 10, std::bind(&ReactiveFollowGap::lidar_callback, this, std::placeholders::_1));
+        sign_subscription_ = this->create_subscription<std_msgs::msg::String>(
+            "/sign_info", 10, std::bind(&ReactiveFollowGap::sign_callback, this, std::placeholders::_1));
 
-        // Drive publisher
-        publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(drive_topic, 10);
+        drive_publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(
+            "/drive", 10);
     }
 
 private:
     void lidar_callback(const sensor_msgs::msg::LaserScan::SharedPtr data) {
-        std::vector<float> ranges = data->ranges;
-        angle_min_ = data->angle_min;
-        angle_increment_ = data->angle_increment;
+        if (processing_sign_) {
+            return;  // Skip gap-following logic while processing a sign
+        }
 
-        // Preprocess LIDAR readings
+        std::vector<float> ranges = data->ranges;
         auto processed_ranges = preprocess_lidar(ranges);
 
-        // Check for gaps
         auto [start_i, end_i] = find_max_gap(processed_ranges);
         if (start_i == -1) {
             RCLCPP_WARN(this->get_logger(), "No valid gaps found. Stopping the vehicle.");
@@ -56,91 +55,112 @@ private:
             return;
         }
 
-        // Best point selection
         int best_point = find_best_point(start_i, end_i, processed_ranges);
-
-        // Calculate angle and speed
-        float angle = angle_min_ + best_point * angle_increment_;
+        float angle = data->angle_min + best_point * data->angle_increment;
         float speed = calculate_speed(processed_ranges[best_point]);
 
-        // Log driving details
-        RCLCPP_INFO(this->get_logger(), "Steering angle: %.2f, Speed: %.2f", angle, speed);
-
-        // Publish drive message
         publish_drive_message(angle, speed);
     }
 
-    std::vector<float> preprocess_lidar(const std::vector<float>& ranges) {
-        float fov_limit = fov_range_ * M_PI / 180.0;
-        int start_index = std::max(0, static_cast<int>((-fov_limit - angle_min_) / angle_increment_));
-        int end_index = std::min(static_cast<int>(ranges.size()), static_cast<int>((fov_limit - angle_min_) / angle_increment_));
+    void sign_callback(const std_msgs::msg::String::SharedPtr msg) {
+        std::istringstream ss(msg->data);
+        std::string sign_type;
+        float distance;
 
-        std::vector<float> processed(ranges.size(), 0.0);
-        for (size_t i = 0; i < ranges.size(); ++i) {
-            if (ranges[i] > longest_range_threshold_) ranges[i] = longest_range_threshold_;
-            if (std::isnan(ranges[i]) || i < start_index || i > end_index) {
-                processed[i] = 0.0;
-            } else {
-                processed[i] = ranges[i];
-            }
+        if (std::getline(ss, sign_type, ',') && ss >> distance) {
+            RCLCPP_INFO(this->get_logger(), "Sign detected: %s, Distance: %.2f", sign_type.c_str(), distance);
+            handle_sign(sign_type, distance);
         }
-        log_readings(processed);
-        return processed;
+    }
+
+    void handle_sign(const std::string& sign_type, float distance) {
+        if (sign_type == "STOP" && distance <= stop_distance_threshold_) {
+            RCLCPP_WARN(this->get_logger(), "STOP sign detected. Halting vehicle.");
+            publish_drive_message(0.0, 0.0);
+            processing_sign_ = true;
+
+        } else if (sign_type == "SPEED_LIMIT") {
+            float speed_limit = std::clamp(distance, min_speed_, max_speed_);
+            RCLCPP_INFO(this->get_logger(), "Adjusting speed to %.2f due to SPEED_LIMIT.", speed_limit);
+            publish_drive_message(0.0, speed_limit);
+            processing_sign_ = true;
+
+        } else if (sign_type == "YIELD") {
+            RCLCPP_INFO(this->get_logger(), "Yield sign detected. Reducing speed.");
+            publish_drive_message(0.0, yield_speed_);
+            processing_sign_ = true;
+            
+        } else {
+            processing_sign_ = false;  // Resume normal operation for unrecognized signs
+        }
+    }
+
+    std::vector<float> preprocess_lidar(const std::vector<float>& ranges) {
+        std::vector<float> filtered_ranges = ranges;
+        std::replace_if(filtered_ranges.begin(), filtered_ranges.end(),
+                        [](float range) { return std::isnan(range) || std::isinf(range); }, 0.0);
+        return filtered_ranges;
     }
 
     std::pair<int, int> find_max_gap(const std::vector<float>& ranges) {
-        int max_gap = 0, start_i = -1, end_i = -1;
-        int i = 0;
-
-        while (i < ranges.size()) {
-            while (i < ranges.size() && ranges[i] == 0.0) i++;
-            int j = i;
-            while (j < ranges.size() && ranges[j] > 0.0) j++;
-            int gap_size = j - i;
-            if (gap_size > max_gap) {
-                max_gap = gap_size;
-                start_i = i;
-                end_i = j - 1;
+        int start = -1, end = -1;
+        int max_start = -1, max_end = -1, max_size = -1;
+        for (int i = 0; i < ranges.size(); ++i) {
+            if (ranges[i] > car_width_) {
+                if (start == -1) {
+                    start = i;
+                }
+                end = i;
+            } else {
+                if (start != -1 && end - start > max_size) {
+                    max_size = end - start;
+                    max_start = start;
+                    max_end = end;
+                }
+                start = -1;
+                end = -1;
             }
-            i = j;
         }
-        return {start_i, end_i};
+        if (start != -1 && end - start > max_size) {
+            max_start = start;
+            max_end = end;
+        }
+        return {max_start, max_end};
     }
 
     int find_best_point(int start_i, int end_i, const std::vector<float>& ranges) {
-        auto max_it = std::max_element(ranges.begin() + start_i, ranges.begin() + end_i + 1);
-        return std::distance(ranges.begin(), max_it);
+        float max_value = -std::numeric_limits<float>::infinity();
+        int best_point = start_i;
+        for (int i = start_i; i <= end_i; ++i) {
+            if (ranges[i] > max_value) {
+                max_value = ranges[i];
+                best_point = i;
+            }
+        }
+        return best_point;
     }
 
     float calculate_speed(float distance) {
         return std::clamp(min_speed_ + (distance / longest_range_threshold_) * (max_speed_ - min_speed_), min_speed_, max_speed_);
     }
 
-    void log_readings(const std::vector<float>& readings) {
-        std::ofstream log_file(log_file_path_, std::ios::app);
-        if (log_file.is_open()) {
-            log_file << "[" << std::fixed;
-            for (size_t i = 0; i < readings.size(); ++i) {
-                log_file << readings[i] << (i < readings.size() - 1 ? ", " : "");
-            }
-            log_file << "]\n";
-            log_file.close();
-        }
-    }
-
     void publish_drive_message(float angle, float speed) {
         auto msg = ackermann_msgs::msg::AckermannDriveStamped();
         msg.drive.steering_angle = angle;
         msg.drive.speed = speed;
-        publisher_->publish(msg);
+        drive_publisher_->publish(msg);
     }
 
-    // Node variables
-    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr subscription_;
-    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_;
-    float fov_range_, longest_range_threshold_, car_width_, min_speed_, max_speed_;
-    float angle_min_, angle_increment_;
-    std::string log_file_path_;
+    // ROS 2 communication
+    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr lidar_subscription_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sign_subscription_;
+    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr drive_publisher_;
+
+    // Parameters
+    float fov_range_, longest_range_threshold_, car_width_;
+    float min_speed_, max_speed_;
+    float stop_distance_threshold_, yield_speed_;
+    bool processing_sign_ = false;
 };
 
 int main(int argc, char* argv[]) {
