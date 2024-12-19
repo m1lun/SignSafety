@@ -3,6 +3,8 @@ logs/
 build/
 bin/
 lib/
+install/
+log/
 msg_gen/
 srv_gen/
 msg/*Action.msg
@@ -51,6 +53,5 @@ qtcreator-*
 CATKIN_IGNORE
 
 # Exclude everything except f1tenth_gym_ros
-/*
-!f1tenth_gym_ros/
-!f1tenth_gym_ros/**
+f1tenth_gym_ros/
+data/
