@@ -54,3 +54,4 @@ CATKIN_IGNORE
 
 # Exclude everything except f1tenth_gym_ros
 f1tenth_gym_ros/
+data/
