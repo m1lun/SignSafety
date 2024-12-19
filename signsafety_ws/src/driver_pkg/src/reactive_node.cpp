@@ -14,14 +14,19 @@ const std::string readings_log_file = "/home/anuhaad/sim_ws/lidar_readings.log";
 
 class ReactiveFollowGap : public rclcpp::Node {
 public:
-    ReactiveFollowGap() : Node("reactive_node") {
+    ReactiveFollowGap() : Node("reactive_node"), stop_(false), speed_limit_(0.5) {
         // Define LIDAR scan and drive topics
         auto lidarscan_topic = "/scan";
         auto drive_topic = "/drive";
+        auto recognized_sign_topic = "/recognized_sign";
 
         // Subscribe to LIDAR scan messages
         subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             lidarscan_topic, 10, std::bind(&ReactiveFollowGap::lidar_callback, this, std::placeholders::_1));
+
+        // Subscribe to recognized sign messages
+        sign_subscription_ = this->create_subscription<std_msgs::msg::String>(
+            recognized_sign_topic, 10, std::bind(&ReactiveFollowGap::sign_callback, this, std::placeholders::_1));
 
         // Publisher for driving messages
         publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(drive_topic, 10);
@@ -35,8 +40,69 @@ public:
     }
 
 private:
+    // Process STOP sign logic
+    void process_STOP(const std::string &data) {
+        try {
+            // Parse distance from the topic data (e.g., "STOP;0.75")
+            float distance_to_sign = std::stof(data.substr(data.find(";") + 1));
+
+            const float stopping_threshold = 0.5;
+
+            if (distance_to_sign <= stopping_threshold) {
+                stop_ = true;
+                RCLCPP_INFO(this->get_logger(), "STOP sign detected within %.2f meters. Stopping the car.", distance_to_sign);
+            } else {
+                RCLCPP_INFO(this->get_logger(), "STOP sign detected at %.2f meters. Approaching...", distance_to_sign);
+            }
+        } catch (const std::exception &e) {
+            RCLCPP_WARN(this->get_logger(), "Failed to parse STOP sign data: %s", e.what());
+        }
+    }
+    // Process SPEED_LIMIT sign logic
+    void process_SPEED_LIMIT(const std::string &data) {
+        try {
+            // Parse the sign data (e.g., "SPEED_LIMIT;30;1.25")
+            size_t first_delim = data.find(";");
+            size_t second_delim = data.find(";", first_delim + 1);
+
+            // Extract speed limit and distance
+            float speed_value = std::stof(data.substr(first_delim + 1, second_delim - first_delim - 1));
+            float distance_to_sign = std::stof(data.substr(second_delim + 1));
+
+            // Convert speed to m/s (from km/h)
+            speed_value /= 10.0;
+
+            // Set a threshold distance to adjust speed (e.g., 2.0 meters)
+            const float speed_adjust_threshold = 2.0;
+
+            if (distance_to_sign <= speed_adjust_threshold) {
+                speed_limit_ = speed_value;
+                RCLCPP_INFO(this->get_logger(), "SPEED_LIMIT sign detected within %.2f meters. Adjusting speed to %.1f m/s.", distance_to_sign, speed_limit_);
+            } else {
+                RCLCPP_INFO(this->get_logger(), "SPEED_LIMIT sign detected at %.2f meters. Preparing to adjust speed to %.1f m/s.", distance_to_sign, speed_value);
+            }
+        } catch (const std::exception &e) {
+            RCLCPP_WARN(this->get_logger(), "Failed to parse SPEED_LIMIT sign data: %s", e.what());
+        }
+    }
+
+    // Callback function for recognized signs
+    void sign_callback(const std_msgs::msg::String::SharedPtr msg) {
+        std::string sign_data = msg->data;
+        if (sign_data == "STOP") {
+            process_STOP();
+        } else if (sign_data.rfind("SPEED_LIMIT", 0) == 0) { // Check if the sign starts with "SPEED_LIMIT"
+            process_SPEED_LIMIT(sign_data);
+        }
+    }
+
     // Callback function for LIDAR data processing
     void lidar_callback(const sensor_msgs::msg::LaserScan::SharedPtr data) {
+        if (stop_) {
+            publish_drive_message(0.0, 0.0); // Stop the car
+            return;
+        }
+
         std::vector<float> ranges = data->ranges;
         max_angle_ = data->angle_max;
         angle_min_ = data->angle_min;
@@ -62,11 +128,17 @@ private:
         float angle = angle_min_ + best_point * angle_increment_;
         float best_range = extended_ranges[best_point];
 
-        // Log the best point details
-        RCLCPP_INFO(this->get_logger(), "Best point index: %d, Angle: %.1f, Range: %.10f", best_point, angle, best_range);
+        // Adjust speed based on steering angle
+        float base_speed = speed_limit_;   // Maximum speed for straight driving
+        float min_speed = 0.5;             // Minimum speed for tight turns
+        float adjusted_speed = std::max(min_speed, base_speed * (1 - std::abs(angle) / max_angle_));
 
-        // Publish driving command with the calculated angle and speed
-        publish_drive_message(angle, 0.5);
+        // Log the best point details
+        RCLCPP_INFO(this->get_logger(), "Best point index: %d, Angle: %.1f, Range: %.10f, Adjusted Speed: %.2f",
+                    best_point, angle, best_range, adjusted_speed);
+
+        // Publish driving command with the calculated angle and adjusted speed
+        publish_drive_message(angle, adjusted_speed);
     }
 
     // Preprocess LIDAR data to remove invalid or overly large readings
@@ -166,8 +238,11 @@ private:
     }
 
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr subscription_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sign_subscription_;
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_;
-    float max_angle_, angle_min_, angle_increment_, scan_ranges_max_, car_width_;
+
+    float max_angle_, angle_min_, angle_increment_, scan_ranges_max_, car_width_, speed_limit_;
+    bool stop_;
 };
 
 int main(int argc, char *argv[]) {
