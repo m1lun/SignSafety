@@ -19,7 +19,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'recognition_node = scripts.recognition_node:main',
+            'recognition_node = recognition_pkg.recognition_node:main',
         ],
     },
 )
