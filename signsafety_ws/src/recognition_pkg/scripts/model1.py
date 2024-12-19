@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore")
 plt.style.use("ggplot")
 
 # Data path
-dataset_path = "data/gtsrb"
+dataset_path = "/home/milun/SignSafety/signsafety_ws/src/recognition_pkg/data/gtsrb"
 train_csv_path = os.path.join(dataset_path, "Train.csv")
 train_images_dir = '/home/milun/SignSafety/signsafety_ws/src/recognition_pkg/data/gtsrb/'
 
