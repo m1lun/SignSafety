@@ -34,16 +34,25 @@ class RecognitionNode(Node):
 
         time.sleep(5)  # Wait 5 seconds before publishing
 
-        image_msg = Image()
-        image_msg.header.stamp = self.get_clock().now().to_msg()
-        image_msg.header.frame_id = "12"
-        image_msg.height = 480  # Example height
-        image_msg.width = 640   # Example width
-        image_msg.encoding = "rgb8"  # Example encoding
-        image_msg.is_bigendian = False
-        image_msg.step = 640 * 3  # Example step (width * number of channels)
-        image_msg.data = [0] * (480 * 640 * 3)  # Dummy black image
+        #image_msg = Image()
+        #image_msg.header.stamp = self.get_clock().now().to_msg()
+        #image_msg.header.frame_id = "12"
+        #image_msg.height = 480  # Example height
+        #image_msg.width = 640   # Example width
+        #image_msg.encoding = "rgb8"  # Example encoding
+        #image_msg.is_bigendian = False
+        #image_msg.step = 640 * 3  # Example step (width * number of channels)
+        #image_msg.data = [0] * (480 * 640 * 3)  # Dummy black image
 
+        cv_image = cv2.imread('/home/milun/SignSafety/signsafety_ws/test/stop.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
+        if cv_image is None:
+            self.get_logger().error(f"Failed to load image at {file_path}")
+            return
+
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
+        image_msg.header.stamp = self.get_clock().now().to_msg()
+        image_msg.header.frame_id = "10.0"
 
         # Publish the image
         self.publisher_test.publish(image_msg)
