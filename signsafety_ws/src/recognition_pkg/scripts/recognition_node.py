@@ -34,7 +34,7 @@ class RecognitionNode(Node):
 
         # Test Stop Sign
         time.sleep(5)  # Wait 5 seconds before publishing
-        cv_image = cv2.imread('/home/milun/SignSafety/signsafety_ws/test/stop.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
+        cv_image = cv2.imread('/home/milun/SignSafety/signsafety_ws/test/stop_preprocess.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
         if cv_image is None:
             self.get_logger().error(f"Failed to load image at {file_path}")
             return
