@@ -13,13 +13,16 @@ import warnings
 warnings.filterwarnings("ignore")
 plt.style.use("ggplot")
 
+supported_classes = [0, 1, 2, 3, 4, 5, 7, 8, 13, 14]
+
 # Data path
 dataset_path = "/home/milun/SignSafety/signsafety_ws/src/recognition_pkg/data/gtsrb"
 train_csv_path = os.path.join(dataset_path, "Train.csv")
 train_images_dir = '/home/milun/SignSafety/signsafety_ws/src/recognition_pkg/data/gtsrb/'
 
-# Read dataset information
+# Read dataset information and filter to supported data
 data = pd.read_csv(train_csv_path)
+filtered_data = data[data["ClassId"].isin(supported_classes)]
 print(f"Loaded dataset with {len(data)} entries.")
 
 # Preprocess images and labels
@@ -42,9 +45,17 @@ def preprocess_data(data, image_dir, input_shape):
 
     return np.array(images), np.array(labels)
 
-# Define input shape (matching the model's expected input)
-input_shape = (32, 32)  # Adjust based on dataset resolution
-X, y = preprocess_data(data, train_images_dir, input_shape)
+# Define input resolution (matching the model's expected input)
+input_shape = (32, 32)
+
+# Classes currently supported from data set
+supported_classes = [0, 1, 2, 3, 4, 5, 7, 8, 13, 14]
+
+# filter data to supported signs
+class_mapping = {cls: idx for idx, cls in enumerate(supported_classes)}
+filtered_data["ClassId"] = filtered_data["ClassId"].map(class_mapping)
+X, y = preprocess_data(filtered_data, train_images_dir, input_shape)
+print(f"Filtered dataset to {len(filtered_data)} entries.")
 
 # Split data into training and validation sets
 X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -54,17 +65,15 @@ print(f"Training samples: {len(X_train)}, Validation samples: {len(X_val)}")
 model = Sequential([
     Conv2D(32, (3, 3), activation='relu', input_shape=(input_shape[0], input_shape[1], 3)),
     MaxPooling2D((2, 2)),
-    Dropout(0.25),
 
     Conv2D(64, (3, 3), activation='relu'),
     MaxPooling2D((2, 2)),
-    Dropout(0.25),
 
     Flatten(),
     Dense(128, activation='relu'),
     Dropout(0.5),
 
-    Dense(len(data["ClassId"].unique()), activation='softmax')  # Output layer for classification
+    Dense(len(supported_classes), activation='softmax')  # Output layer for classification
 ])
 
 # Compile the model
