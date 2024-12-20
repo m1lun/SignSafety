@@ -31,6 +31,11 @@ class ImageProcessorNode(Node):
             self.get_logger().error(f"Error: Unable to load image at {image_path}")
             return
 
+        # Check if the image has 4 channels (RGBA)
+        if image.shape[2] == 4:
+            # Convert RGBA to BGR
+            image = cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
+
         # Convert to HSV and mask red regions
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         lower_red1 = np.array([0, 100, 60])
@@ -47,34 +52,25 @@ class ImageProcessorNode(Node):
 
         # Find contours and draw bounding boxes
         contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
+        for i, contour in enumerate(contours):
             x, y, w, h = cv2.boundingRect(contour)
             if w > 10 and h > 10:  # Filter small regions
-                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                # Crop the detected rectangle region
+                cropped_rectangle = image[y:y + h, x:x + w]
 
-        # Define cropped images (example of cropping)
-        cropped_images = []
-        crop_size = (100, 100)  # Example size of the cropped image (adjust as needed)
-        for y in range(0, height, crop_size[1]):
-            for x in range(0, width, crop_size[0]):
-                cropped_image = image[y:y+crop_size[1], x:x+crop_size[0]]
-                cropped_gray = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2GRAY)
-                cropped_images.append(cropped_gray)
+                cropped_height, cropped_width, _ = cropped_rectangle.shape
+                ros_image = self.bridge.cv2_to_imgmsg(cropped_rectangle, encoding='bgr8')
+                ros_image.height = cropped_height
+                ros_image.width = cropped_width
+                ros_image.step = len(cropped_rectangle[0]) * cropped_rectangle.shape[2]  # Width * channels
+                ros_image.data = cropped_rectangle.tobytes()
+                ros_image.is_bigendian = 0  # Assuming little-endian
+                ros_image.header.frame_id = str(10)
+                ros_image.header.stamp = self.get_clock().now().to_msg()
 
-        # Get the directory of the original image for saving the output
-        output_dir = os.path.dirname(image_path)
-
-        # Save the image with bounding boxes
-        output_image_path = os.path.join(output_dir, "image_with_bounding_boxes.png")
-        cv2.imwrite(output_image_path, image)
-
-        # Save the cropped grayscale images
-        for i, cropped_gray in enumerate(cropped_images):
-            cropped_image_path = os.path.join(output_dir, f"cropped_gray_{i+1}.png")
-            cv2.imwrite(cropped_image_path, cropped_gray)
-
-        # Optionally, print out where the files were saved
-        print(f"Saved images to {output_dir}")
+                # Publish the cropped image
+                self.publisher_.publish(ros_image)
+                self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
 
 def main(args=None):
     rclpy.init(args=args)
