@@ -16,7 +16,10 @@ class ImageProcessorNode(Node):
         super().__init__('image_processor')
         self.publisher_ = self.create_publisher(Image, 'preprocessed_image', 10)
         self.bridge = CvBridge()
-
+        self.TOP_X_PADDING = 7
+        self.TOP_Y_PADDING = 3
+        self.BOTTOM_X_PADDING = 24
+        self.BOTTOM_Y_PADDING = 20
         # # Load the image from a parameter
         # self.declare_parameter("image_path", "")
         # image_path = self.get_parameter("image_path").get_parameter_value().string_value
@@ -53,45 +56,43 @@ class ImageProcessorNode(Node):
         # Highlight red regions
         # red_highlighted = cv2.bitwise_and(image, image, mask=red_mask)
         # height, width, _ = red_highlighted.shape
-        while True:
-            image_copy = image.copy()
 
-            # Find contours and draw bounding boxes
-            contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cropped_images = []
-            for i, contour in enumerate(contours):
-                x, y, w, h = cv2.boundingRect(contour)
-                if w > 10 and h > 10:  # Filter small regions
-                    # Crop the detected rectangle region
-                    x1 = max(x - TOP_X_PADDING, 0)
-                    y1 = max(y - TOP_Y_PADDING, 0)
-                    x2 = min(x + BOTTOM_X_PADDING, image.shape[1])
-                    y2 = min(y + BOTTOM_Y_PADDING, image.shape[0])
+        # Find contours and draw bounding boxes
+        contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cropped_images = []
+        for i, contour in enumerate(contours):
+            x, y, w, h = cv2.boundingRect(contour)
+            if w > 10 and h > 10:  # Filter small regions
+                # Crop the detected rectangle region
+                x1 = max(x - self.TOP_X_PADDING, 0)
+                y1 = max(y - self.TOP_Y_PADDING, 0)
+                x2 = min(x + self.BOTTOM_X_PADDING, image.shape[1])
+                y2 = min(y + self.BOTTOM_Y_PADDING, image.shape[0])
 
-                    # Draw the rectangle
-                    # Draw the rectangle
-                    cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                # Draw the rectangle
+                # Draw the rectangle
+                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-                    # Crop the ROI and store it
-                    cropped_rectangle = image[y1:y2, x1:x2]
-                    cropped_images.append(cropped_rectangle)
-                    output_path = os.path.join(r'/sim_ws/src/trial', f"cropped_rectangle_{i + 1}.png")
-                    cv2.imwrite(output_path, cropped_rectangle)
-                    print(f"Saved cropped image {i + 1} to {output_path}")
+                # Crop the ROI and store it
+                cropped_rectangle = image[y1:y2, x1:x2]
+                cropped_images.append(cropped_rectangle)
+                output_path = os.path.join(r'/sim_ws/src/trial', f"cropped_rectangle_{i + 1}.png")
+                cv2.imwrite(output_path, cropped_rectangle)
+                print(f"Saved cropped image {i + 1} to {output_path}")
 
-                    # cropped_height, cropped_width, _ = cropped_rectangle.shape
-                    # ros_image = self.bridge.cv2_to_imgmsg(cropped_rectangle, encoding='bgr8')
-                    # ros_image.height = cropped_height
-                    # ros_image.width = cropped_width
-                    # ros_image.step = len(cropped_rectangle[0]) * cropped_rectangle.shape[2]  # Width * channels
-                    # ros_image.data = cropped_rectangle.tobytes()
-                    # ros_image.is_bigendian = 0  # Assuming little-endian
-                    # ros_image.header.frame_id = str(10)
-                    # ros_image.header.stamp = self.get_clock().now().to_msg()
+                # cropped_height, cropped_width, _ = cropped_rectangle.shape
+                # ros_image = self.bridge.cv2_to_imgmsg(cropped_rectangle, encoding='bgr8')
+                # ros_image.height = cropped_height
+                # ros_image.width = cropped_width
+                # ros_image.step = len(cropped_rectangle[0]) * cropped_rectangle.shape[2]  # Width * channels
+                # ros_image.data = cropped_rectangle.tobytes()
+                # ros_image.is_bigendian = 0  # Assuming little-endian
+                # ros_image.header.frame_id = str(10)
+                # ros_image.header.stamp = self.get_clock().now().to_msg()
 
-                    # # Publish the cropped image
-                    # self.publisher_.publish(ros_image)
-                    # self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
+                # # Publish the cropped image
+                # self.publisher_.publish(ros_image)
+                # self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
 
 def main(args=None):
     rclpy.init(args=args)
