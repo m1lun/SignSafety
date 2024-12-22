@@ -11,15 +11,20 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'numpy',
+        'opencv-python'
+    ],
     zip_safe=True,
     maintainer='mvirtual',
     maintainer_email='milungraciastaplay@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='ROS2 package for processing and publishing pre-processed image data',
+    license='Apache License 2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'image_processor = preprocess_pkg.image_processor:main',
         ],
     },
 )
