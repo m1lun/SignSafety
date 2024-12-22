@@ -5,6 +5,7 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <std_msgs/msg/string.hpp>
 
 #define FOV_RANGE 75                 // Points outside this range (in degrees) will be disregarded
 #define LONGEST_RANGE_THRESHOLD 7.0  // Points further than this threshold will be truncated to the threshold
@@ -37,6 +38,8 @@ public:
         angle_increment_ = 0.0;
         scan_ranges_max_ = 0.0;
         car_width_ = 0.5;
+
+	RCLCPP_INFO(this->get_logger(), "Gap follow initialized\n");
     }
 
 private:
@@ -88,9 +91,10 @@ private:
 
     // Callback function for recognized signs
     void sign_callback(const std_msgs::msg::String::SharedPtr msg) {
+	RCLCPP_INFO(this->get_logger(), "Received: '%s'", msg->data.c_str());
         std::string sign_data = msg->data;
         if (sign_data == "STOP") {
-            process_STOP();
+            process_STOP(sign_data);
         } else if (sign_data.rfind("SPEED_LIMIT", 0) == 0) { // Check if the sign starts with "SPEED_LIMIT"
             process_SPEED_LIMIT(sign_data);
         }
