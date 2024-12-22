@@ -93,9 +93,16 @@ private:
     void sign_callback(const std_msgs::msg::String::SharedPtr msg) {
 	RCLCPP_INFO(this->get_logger(), "Received: '%s'", msg->data.c_str());
         std::string sign_data = msg->data;
-        if (sign_data == "STOP") {
+	std::string sign_name = "";
+
+	size_t delimiter_pos = sign_data.find(';');
+	if (delimiter_pos != std::string::npos) {
+	    sign_name = sign_data.substr(0, delimiter_pos); // Take substring before ';'
+	}
+
+        if (sign_name == "STOP") {
             process_STOP(sign_data);
-        } else if (sign_data.rfind("SPEED_LIMIT", 0) == 0) { // Check if the sign starts with "SPEED_LIMIT"
+        } else if (sign_name == "SPEED_LIMIT") { // Check if the sign starts with "SPEED_LIMIT"
             process_SPEED_LIMIT(sign_data);
         }
     }
