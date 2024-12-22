@@ -30,7 +30,7 @@ class RecognitionNode(Node):
         self.input_shape = self.model.input_shape[1:3] # this is (H, W)
         self.labels = ['SPEED_LIMIT;20', 'SPEED_LIMIT;30', 'SPEED_LIMIT;50', 'SPEED_LIMIT;60', 'SPEED_LIMIT;70', 'SPEED_LIMIT;80', 'SPEED_LIMIT;100', 'SPEED_LIMIT;120', 'YIELD', 'STOP'] # Add more once these are working
 
-        self.prob_threshold = 0.5
+        self.prob_threshold = 0.98
 
         self.get_logger().info("Recognition Node Initialized")
 
@@ -43,7 +43,7 @@ class RecognitionNode(Node):
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
         image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
         image_msg.header.stamp = self.get_clock().now().to_msg()
-        image_msg.header.frame_id = "10.0"
+        image_msg.header.frame_id = "0.2"
         self.publisher_test.publish(image_msg)
         self.get_logger().info("Published preprocessed test image to /preprocessed_image")
 
