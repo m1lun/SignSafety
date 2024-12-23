@@ -18,7 +18,7 @@ class ImageProcessorNode(Node):
         self.TOP_Y_PADDING = 3
         self.BOTTOM_X_PADDING = 24
         self.BOTTOM_Y_PADDING = 20
-        image_path = r"test/stop.png"
+        image_path = r"test/stop2.png"
         image_path2 = r"src/preprocess_pkg/output.txt"
         self.get_image(image_path2)
         self.process_and_publish(image_path)
