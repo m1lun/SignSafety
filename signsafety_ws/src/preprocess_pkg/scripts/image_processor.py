@@ -18,8 +18,8 @@ class ImageProcessorNode(Node):
         self.TOP_Y_PADDING = 3
         self.BOTTOM_X_PADDING = 24
         self.BOTTOM_Y_PADDING = 20
-        image_path = r"/sim_ws/src/download1.png"
-        image_path2 = r"/sim_ws/src/output.txt"
+        image_path = r"test/stop.png"
+        image_path2 = r"src/preprocess_pkg/output.txt"
         self.get_image(image_path2)
         self.process_and_publish(image_path)
 
@@ -53,7 +53,7 @@ class ImageProcessorNode(Node):
         image.putdata(rgb_data)
 
         # Save the image
-        output_path = "/sim_ws/src/download1.png"
+        output_path = "test/stop1.png"
         image.save(output_path)
         print(f"Image saved as {output_path}")
 
@@ -90,7 +90,7 @@ class ImageProcessorNode(Node):
 
                 # Crop the ROI and store it
                 cropped_rectangle = image[y1:y2, x1:x2]
-                output_path = os.path.join(r'/sim_ws/src/trial', f"cropped_rectangle_{i + 1}.png")
+                output_path = os.path.join(r'test', f"cropped_rectangle_{i + 1}.png")
                 cv2.imwrite(output_path, cropped_rectangle)
                 print(f"Saved cropped image {i + 1} to {output_path}")
                 cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGRA2RGB)
