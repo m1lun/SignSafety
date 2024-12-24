@@ -16,9 +16,9 @@ plt.style.use("ggplot")
 supported_classes = [0, 1, 2, 3, 4, 5, 7, 8, 13, 14]
 
 # Data path
-dataset_path = "/home/milun/SignSafety/signsafety_ws/src/recognition_pkg/data/gtsrb"
+dataset_path = "data/gtsrb"
 train_csv_path = os.path.join(dataset_path, "Train.csv")
-train_images_dir = '/home/milun/SignSafety/signsafety_ws/src/recognition_pkg/data/gtsrb/'
+train_images_dir = 'data/gtsrb/'
 
 # Read dataset information and filter to supported data
 data = pd.read_csv(train_csv_path)

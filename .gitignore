@@ -56,4 +56,5 @@ CATKIN_IGNORE
 f1tenth_gym_ros/
 
 # Exclude large dataset
-data/
+gtsrb/
+trial/
