@@ -18,9 +18,10 @@ class ImageProcessorNode(Node):
         self.TOP_Y_PADDING = 3
         self.BOTTOM_X_PADDING = 24
         self.BOTTOM_Y_PADDING = 20
-        image_path = r"/sim_ws/src/download1.png"
-        image_path2 = r"/sim_ws/src/output.txt"
+        image_path = r"/home/anuhaad/sim_ws/src/download_rgb.png"
+        image_path2 = r"/home/anuhaad/sim_ws/src/output.txt"
         self.get_image(image_path2)
+        self.get_depth(image_path2)
         self.process_and_publish(image_path)
 
     def get_image(self, image_path):
@@ -53,7 +54,41 @@ class ImageProcessorNode(Node):
         image.putdata(rgb_data)
 
         # Save the image
-        output_path = "/sim_ws/src/download1.png"
+        output_path = "/home/anuhaad/sim_ws/src/download_rgb.png"
+        image.save(output_path)
+        print(f"Image saved as {output_path}")
+
+    def get_depth(self, image_path):
+        f = open(image_path, "r")
+        pattern = re.compile(r"\d+")
+
+        image_data = []
+
+        for i in range(0, 921741):
+            f.readline()
+
+        # print(pattern.findall(f.readline()))
+
+        for i in range (0, 1536142 - 921741):
+            try:
+                image_data.append(int(pattern.findall(f.readline())[0]))
+            except:
+                print(i)
+                return
+
+            
+        depth_data = image_data
+
+        # Create an image with a single row of pixels
+        width = 640
+        height = 480
+        image = PILImage.new("L", (width, height))
+
+        # Set pixels in the image
+        image.putdata(depth_data)
+
+        # Save the image
+        output_path = "/home/anuhaad/sim_ws/src/download_depth.png"
         image.save(output_path)
         print(f"Image saved as {output_path}")
 
@@ -90,7 +125,7 @@ class ImageProcessorNode(Node):
 
                 # Crop the ROI and store it
                 cropped_rectangle = image[y1:y2, x1:x2]
-                output_path = os.path.join(r'/sim_ws/src/trial', f"cropped_rectangle_{i + 1}.png")
+                output_path = os.path.join(r'/home/anuhaad/sim_ws/src/trial', f"cropped_rectangle_{i + 1}.png")
                 cv2.imwrite(output_path, cropped_rectangle)
                 print(f"Saved cropped image {i + 1} to {output_path}")
                 cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGRA2RGB)
