@@ -69,19 +69,22 @@ class ImageProcessorNode(Node):
 
         # print(pattern.findall(f.readline()))
 
-        for i in range (0, 1536142 - 921741):
-            try:
-                image_data.append(int(pattern.findall(f.readline())[0]))
-            except:
-                print(i)
-                return
-
+        for i in range (0, 614400):
+            # low_bits = bin(int(pattern.findall(f.readline())[0]))
+            # high_bits = bin(int(pattern.findall(f.readline())[0]))
+            # combined = low_bits
+            #     image_data.append(int(pattern.findall(f.readline())[0]))
+            data = int(pattern.findall(f.readline())[0])
+            if i % 2 == 1:
+                image_data.append(data)
             
-        depth_data = image_data
+        depth_data = np.array(image_data)
 
         # Create an image with a single row of pixels
         width = 640
         height = 480
+        # depth_data = depth_data.astype("uint16")
+        # depth_data.reshape(width, height)
         image = PILImage.new("L", (width, height))
 
         # Set pixels in the image
