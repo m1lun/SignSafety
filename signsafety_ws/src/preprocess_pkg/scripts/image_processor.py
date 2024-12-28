@@ -66,30 +66,21 @@ class ImageProcessorNode(Node):
 
         # Convert to HSV and mask red regions
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        lower_red1 = np.array([0, 100, 60])
-        upper_red1 = np.array([10, 255, 255])
-        lower_red2 = np.array([170, 100, 50])
-        upper_red2 = np.array([180, 255, 255])
-        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        red_mask = cv2.bitwise_or(mask1, mask2)
+        lower_bound = np.array([0,0,223])
+        upper_bound = np.array([157,255,255])
+        red_mask = cv2.inRange(hsv, lower_bound, upper_bound)
 
         # Find contours and draw bounding boxes
         contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for i, contour in enumerate(contours):
             x, y, w, h = cv2.boundingRect(contour)
             if w > 10 and h > 10:  # Filter small regions
-                # Crop the detected rectangle region
-                x1 = max(x - self.TOP_X_PADDING, 0)
-                y1 = max(y - self.TOP_Y_PADDING, 0)
-                x2 = min(x + self.BOTTOM_X_PADDING, image.shape[1])
-                y2 = min(y + self.BOTTOM_Y_PADDING, image.shape[0])
 
                 # Draw the rectangle
-                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
                 # Crop the ROI and store it
-                cropped_rectangle = image[y1:y2, x1:x2]
+                cropped_rectangle = image[y:y+h, x:x+w]
                 output_path = os.path.join(r'/sim_ws/src/trial', f"cropped_rectangle_{i + 1}.png")
                 cv2.imwrite(output_path, cropped_rectangle)
                 print(f"Saved cropped image {i + 1} to {output_path}")
