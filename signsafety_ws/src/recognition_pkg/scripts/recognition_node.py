@@ -28,20 +28,22 @@ class RecognitionNode(Node):
 
         self.model = tf.keras.models.load_model('/home/milun/SignSafety/signsafety_ws/models/model1')
         self.input_shape = self.model.input_shape[1:3] # this is (H, W)
-        self.labels = ['SPEED_LIMIT;20', 'SPEED_LIMIT;30', 'SPEED_LIMIT;50', 'SPEED_LIMIT;60', 'SPEED_LIMIT;70', 'SPEED_LIMIT;80', 'unknown;80', 'SPEED_LIMIT;100', 'SPEED_LIMIT;120', 'uknown', 'unkown', 'unknown', 'unknown', 'YIELD', 'STOP'] # Add more once these are working
+        self.labels = ['SPEED_LIMIT;20', 'SPEED_LIMIT;30', 'SPEED_LIMIT;50', 'SPEED_LIMIT;60', 'SPEED_LIMIT;70', 'SPEED_LIMIT;80', 'SPEED_LIMIT;100', 'SPEED_LIMIT;120', 'YIELD', 'STOP'] # Add more once these are working
+
+        self.prob_threshold = 0.98
 
         self.get_logger().info("Recognition Node Initialized")
 
         # Test Stop Sign
         time.sleep(5)  # Wait 5 seconds before publishing
-        cv_image = cv2.imread('/home/milun/SignSafety/signsafety_ws/test/stop_preprocess.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
+        cv_image = cv2.imread('/home/milun/SignSafety/signsafety_ws/test/stop4.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
         if cv_image is None:
-            self.get_logger().error(f"Failed to load image at {file_path}")
+            self.get_logger().error(f"Failed to load image")
             return
         cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
         image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
         image_msg.header.stamp = self.get_clock().now().to_msg()
-        image_msg.header.frame_id = "10.0"
+        image_msg.header.frame_id = "0.2"
         self.publisher_test.publish(image_msg)
         self.get_logger().info("Published preprocessed test image to /preprocessed_image")
 
@@ -56,10 +58,18 @@ class RecognitionNode(Node):
             img_array = np.array(img_resized) / 255.0  # Normalize to [0, 1]
             img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
 
-            # Perform sign recognition
+            # Perform sign recognition via model1
             predictions = self.model.predict(img_array)
+            max_prob = np.max(predictions)
             recognized_label_index = np.argmax(predictions, axis=1)[0]
-            self.get_logger().info(f"Index is {recognized_label_index}")
+            self.get_logger().info(f"Index is {recognized_label_index} with prob {max_prob}")
+
+            if max_prob < self.prob_threshold:
+                recognized_sign = "unknown"
+                self.get_logger().info(f"Index is unknown")
+            else:
+                recognized_sign = self.labels[recognized_label_index]
+                self.get_logger().info(f"Index is {recognized_label_index}")
            
             if recognized_label_index >= len(self.labels):
                 self.get_logger().warning(f"Index {recognized_label_index} is out of bounds. Sign not supported.")
