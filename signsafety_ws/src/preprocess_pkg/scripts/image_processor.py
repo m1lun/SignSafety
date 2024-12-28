@@ -147,6 +147,8 @@ class ImageProcessorNode(Node):
                 ros_image.is_bigendian = 0  # Assuming little-endian
                 ros_image.header.frame_id = str(10)
                 ros_image.header.stamp = self.get_clock().now().to_msg()
+                self.publisher_.publish(ros_image)
+                self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
 
                 # # Save the cropped image to disk
                 # output_path = os.path.join(r'/sim_ws/src', f"croppedssss_image_{i}.png")
