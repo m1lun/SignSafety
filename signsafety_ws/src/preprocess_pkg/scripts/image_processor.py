@@ -14,10 +14,15 @@ class ImageProcessorNode(Node):
         super().__init__('image_processor')
         self.publisher_ = self.create_publisher(Image, 'preprocessed_image', 10)
         self.bridge = CvBridge()
-        self.TOP_X_PADDING = 7
-        self.TOP_Y_PADDING = 3
-        self.BOTTOM_X_PADDING = 24
-        self.BOTTOM_Y_PADDING = 20
+        # self.TOP_X_PADDING = 7
+        # self.TOP_Y_PADDING = 3
+        # self.BOTTOM_X_PADDING = 24
+        # self.BOTTOM_Y_PADDING = 20
+        self.blur_kernel = 12
+        self.canny_low = 0
+        self.canny_high = 195
+        self.threshold_value = 127
+        self.scale = 30
         image_path = r"/sim_ws/src/download1.png"
         image_path2 = r"/sim_ws/src/output.txt"
         self.get_image(image_path2)
@@ -98,6 +103,54 @@ class ImageProcessorNode(Node):
                 # Publish the cropped image
                 self.publisher_.publish(ros_image)
                 self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
+
+
+        # Ensure blur_kernel is odd
+        blur_kernel = max(3, self.blur_kernel | 1)  # Make it odd and at least 3
+
+        # Resize scale factor
+        resize_factor = max(self.scale / 100, 0.01)
+
+        # Apply Gaussian Blur
+        blurred_image = cv2.GaussianBlur(image_copy, (blur_kernel, blur_kernel), 1.4)
+
+        # Apply Canny edge detection
+        edges = cv2.Canny(blurred_image, self.canny_low, self.canny_high)
+
+        # Apply threshold
+        _, threshold = cv2.threshold(edges, self.threshold_value, 255, cv2.THRESH_BINARY)
+
+        # Find contours
+        contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        for i, contour in enumerate(contours):
+            # Skip the first contour which is the whole image
+            if i == 0:
+                continue
+
+            # Approximate the contour
+            approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
+
+            # Highlight quadrilaterals
+            if len(approx) == 4:  # Check if the contour has 4 vertices
+
+                # Get the bounding box and crop
+                x, y, w, h = cv2.boundingRect(approx)
+                cropped_rectangle = image_copy[y:y+h, x:x+w]
+                cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGRA2RGB)
+                cropped_height, cropped_width, _ = cropped_rectangle_rgb.shape
+                ros_image = self.bridge.cv2_to_imgmsg(cropped_rectangle_rgb, encoding='rgb8')
+                ros_image.height = cropped_height
+                ros_image.width = cropped_width
+                ros_image.step = len(cropped_rectangle_rgb[0]) * cropped_rectangle_rgb.shape[2]  # Width * channels
+                ros_image.data = cropped_rectangle_rgb.tobytes()
+                ros_image.is_bigendian = 0  # Assuming little-endian
+                ros_image.header.frame_id = str(10)
+                ros_image.header.stamp = self.get_clock().now().to_msg()
+
+                # # Save the cropped image to disk
+                # output_path = os.path.join(r'/sim_ws/src', f"croppedssss_image_{i}.png")
+                # cv2.imwrite(output_path, cropped_rectangle)
         
 def main(args=None):
     rclpy.init(args=args)
