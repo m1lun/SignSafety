@@ -58,3 +58,6 @@ f1tenth_gym_ros/
 # Exclude large dataset
 gtsrb/
 trial/
+
+# Exclude temp outputs from preprocessor
+pre_output/
