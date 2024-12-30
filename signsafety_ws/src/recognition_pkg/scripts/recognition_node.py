@@ -35,17 +35,17 @@ class RecognitionNode(Node):
         self.get_logger().info("Recognition Node Initialized")
 
         # Test Stop Sign
-        time.sleep(5)  # Wait 5 seconds before publishing
-        cv_image = cv2.imread('test/stop4.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
-        if cv_image is None:
-            self.get_logger().error(f"Failed to load image")
-            return
-        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-        image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
-        image_msg.header.stamp = self.get_clock().now().to_msg()
-        image_msg.header.frame_id = "0.2"
-        self.publisher_test.publish(image_msg)
-        self.get_logger().info("Published preprocessed test image to /preprocessed_image")
+        # time.sleep(5)  # Wait 5 seconds before publishing
+        # cv_image = cv2.imread('test/stop4.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
+        # if cv_image is None:
+            # self.get_logger().error(f"Failed to load image")
+            # return
+        # cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        # image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
+        # image_msg.header.stamp = self.get_clock().now().to_msg()
+        # image_msg.header.frame_id = "0.2"
+        # self.publisher_test.publish(image_msg)
+        # self.get_logger().info("Published preprocessed test image to /preprocessed_image")
 
     def image_callback(self, msg):
         try:
@@ -62,18 +62,19 @@ class RecognitionNode(Node):
             predictions = self.model.predict(img_array)
             max_prob = np.max(predictions)
             recognized_label_index = np.argmax(predictions, axis=1)[0]
-            self.get_logger().info(f"Index is {recognized_label_index} with prob {max_prob}")
 
             if max_prob < self.prob_threshold:
                 recognized_sign = "unknown"
-                self.get_logger().info(f"Index is unknown")
+                self.get_logger().info(f"Index is unknown with prob {max_prob}")
+                return
             else:
                 recognized_sign = self.labels[recognized_label_index]
-                self.get_logger().info(f"Index is {recognized_label_index}")
+                self.get_logger().info(f"Index is {recognized_label_index} with prob {max_prob}")
            
             if recognized_label_index >= len(self.labels):
                 self.get_logger().warning(f"Index {recognized_label_index} is out of bounds. Sign not supported.")
                 recognized_sign = "unknown"
+                return
             else:
                 recognized_sign = self.labels[recognized_label_index]
 
