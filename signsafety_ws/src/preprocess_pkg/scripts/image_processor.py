@@ -23,7 +23,7 @@ class ImageProcessorNode(Node):
         self.canny_high = 195
         self.threshold_value = 127
         self.scale = 30
-        image_path = r"test/stop3.png"
+        image_path = r"test/test.png"
         image_path2 = r"src/preprocess_pkg/output.txt"
         self.get_image(image_path2)
         self.process_and_publish(image_path)
@@ -58,7 +58,7 @@ class ImageProcessorNode(Node):
         image.putdata(rgb_data)
 
         # Save the image
-        output_path = "test/stop6.png"
+        output_path = "test/test.png"
         image.save(output_path)
         print(f"New image saved as {output_path}")
 
