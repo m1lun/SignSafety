@@ -1,0 +1,3 @@
+#Don't add any temporary images
+*
+!.gitignore
