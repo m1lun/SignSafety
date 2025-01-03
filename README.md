@@ -1,6 +1,5 @@
 # SignSafety
 
-Run all nodes from within ````signsafety_ws````
+Add dataset folder into ````signsafety_ws/data```` to generate model
 
-Add dataset folder into ````signsafety_ws/data````
-
+Run all nodes from within ````signsafety_ws```` using ````ros2 launch driver_pkg multi_node.py````
