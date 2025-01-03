@@ -9,6 +9,7 @@
 
 #define FOV_RANGE 75                 // Points outside this range (in degrees) will be disregarded
 #define LONGEST_RANGE_THRESHOLD 7.0  // Points further than this threshold will be truncated to the threshold
+#define SPEED_FACTOR 0.25
 
 // Log file path for LIDAR readings
 const std::string readings_log_file = "/home/anuhaad/sim_ws/lidar_readings.log";
@@ -20,6 +21,7 @@ public:
         auto lidarscan_topic = "/scan";
         auto drive_topic = "/drive";
         auto recognized_sign_topic = "/recognized_sign";
+	auto start_topic = "/car_start";
 
         // Subscribe to LIDAR scan messages
         subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
@@ -28,6 +30,10 @@ public:
         // Subscribe to recognized sign messages
         sign_subscription_ = this->create_subscription<std_msgs::msg::String>(
             recognized_sign_topic, 10, std::bind(&ReactiveFollowGap::sign_callback, this, std::placeholders::_1));
+
+	// Subscribe to car_start topic
+	start_subscription_ = this->create_subscription<std_msgs::msg::String>(
+	    start_topic, 10, std::bind(&ReactiveFollowGap::start_callback, this, std::placeholders::_1));
 
         // Publisher for driving messages
         publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(drive_topic, 10);
@@ -38,11 +44,20 @@ public:
         angle_increment_ = 0.0;
         scan_ranges_max_ = 0.0;
         car_width_ = 0.5;
+	stop_ = true;
 
-	RCLCPP_INFO(this->get_logger(), "Gap follow initialized\n");
+	RCLCPP_INFO(this->get_logger(), "Reactive Node initialized\n");
     }
 
 private:
+
+    void start_callback(const std_msgs::msg::String::SharedPtr msg) {
+        if (msg->data == "START") {
+            stop_ = false;
+            RCLCPP_INFO(this->get_logger(), "Reactive Node Started");
+        }
+    }
+
     // Process STOP sign logic
     void process_STOP(const std::string &data) {
         try {
@@ -74,6 +89,7 @@ private:
 
             // Convert speed to m/s (from km/h)
             speed_value /= 10.0;
+	    speed_value *= SPEED_FACTOR;
 
             // Set a threshold distance to adjust speed (e.g., 2.0 meters)
             const float speed_adjust_threshold = 2.0;
@@ -91,6 +107,7 @@ private:
 
     // Callback function for recognized signs
     void sign_callback(const std_msgs::msg::String::SharedPtr msg) {
+
 	RCLCPP_INFO(this->get_logger(), "Received: '%s'", msg->data.c_str());
         std::string sign_data = msg->data;
 	std::string sign_name = "";
@@ -145,8 +162,7 @@ private:
         float adjusted_speed = std::max(min_speed, base_speed * (1 - std::abs(angle) / max_angle_));
 
         // Log the best point details
-        RCLCPP_INFO(this->get_logger(), "Best point index: %d, Angle: %.1f, Range: %.10f, Adjusted Speed: %.2f",
-                    best_point, angle, best_range, adjusted_speed);
+        // RCLCPP_INFO(this->get_logger(), "Best point index: %d, Angle: %.1f, Range: %.10f, Adjusted Speed: %.2f", best_point, angle, best_range, adjusted_speed);
 
         // Publish driving command with the calculated angle and adjusted speed
         publish_drive_message(angle, adjusted_speed);
@@ -250,6 +266,7 @@ private:
 
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr subscription_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sign_subscription_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr start_subscription_;
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_;
 
     float max_angle_, angle_min_, angle_increment_, scan_ranges_max_, car_width_, speed_limit_;
