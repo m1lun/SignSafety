@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Conv2D, Flatten, Dropout, MaxPooling2D
+from tensorflow.keras.layers import Dense, Conv2D, Flatten, Dropout, MaxPooling2D, GlobalAveragePooling2D, BatchNormalization
 
 # Ignore warnings and set plot style
 import warnings
@@ -63,17 +63,24 @@ print(f"Training samples: {len(X_train)}, Validation samples: {len(X_val)}")
 
 # Build the model
 model = Sequential([
+
     Conv2D(32, (3, 3), activation='relu', input_shape=(input_shape[0], input_shape[1], 3)),
+    BatchNormalization(),
     MaxPooling2D((2, 2)),
 
     Conv2D(64, (3, 3), activation='relu'),
+    BatchNormalization(),
+    MaxPooling2D((2, 2)),
+
+    Conv2D(128, (3, 3), activation='relu'),
+    BatchNormalization(),
     MaxPooling2D((2, 2)),
 
     Flatten(),
     Dense(128, activation='relu'),
     Dropout(0.5),
+    Dense(len(supported_classes), activation='softmax')
 
-    Dense(len(supported_classes), activation='softmax')  # Output layer for classification
 ])
 
 # Compile the model
@@ -95,6 +102,6 @@ plt.show()
 # Save the model
 model_save_path = os.path.join("models", "model1")
 os.makedirs(model_save_path, exist_ok=True)
-model.save(model_save_path)
+model.save("models/model1")
 print(f"Model saved to {model_save_path}")
 

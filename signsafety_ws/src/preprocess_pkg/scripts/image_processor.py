@@ -7,6 +7,7 @@ import numpy as np
 from cv_bridge import CvBridge
 import os
 import re
+import time
 from PIL import Image as PILImage  # Rename the imported Image from PIL
 
 class ImageProcessorNode(Node):
@@ -25,6 +26,8 @@ class ImageProcessorNode(Node):
         self.scale = 30
         image_path = r"test/test.png"
         image_path2 = r"src/preprocess_pkg/output.txt"
+        
+        time.sleep(20)
         self.get_image(image_path2)
         self.process_and_publish(image_path)
 
