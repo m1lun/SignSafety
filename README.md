@@ -1,7 +1,5 @@
 # SignSafety
 
-Add dataset folder into ````signsafety_ws/data````
-
-Add folder ````/pre_output```` into ````signsafety_ws/test```` to test preprocessed images
+Add dataset folder into ````signsafety_ws/data```` to generate model
 
 Run all nodes from within ````signsafety_ws```` using ````ros2 launch driver_pkg multi_node.py````
