@@ -14,6 +14,7 @@ class ImageProcessorNode(Node):
     def __init__(self):
         super().__init__('image_processor')
         self.publisher_ = self.create_publisher(Image, 'preprocessed_image', 10)
+        self.publisher_test = self.create_publisher(Image, 'preprocessed_image', 10) 
         self.bridge = CvBridge()
         # self.TOP_X_PADDING = 7
         # self.TOP_Y_PADDING = 3
@@ -26,10 +27,48 @@ class ImageProcessorNode(Node):
         self.scale = 30
         image_path = r"test/test.png"
         image_path2 = r"src/preprocess_pkg/output.txt"
-        
-        time.sleep(20)
-        self.get_image(image_path2)
-        self.process_and_publish(image_path)
+
+        # Test Stop Sign
+        time.sleep(5)  # Wait 5 seconds before publishing
+        cv_image = cv2.imread('test/speed30.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
+        if cv_image is None:
+            self.get_logger().error(f"Failed to load image")
+            return
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
+        image_msg.header.stamp = self.get_clock().now().to_msg()
+        image_msg.header.frame_id = "0.2"
+        self.publisher_test.publish(image_msg)
+        self.get_logger().info("Published preprocessed test image to /preprocessed_image")
+
+        time.sleep(10)  # Wait 5 seconds before publishing
+        cv_image = cv2.imread('test/speed70.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
+        if cv_image is None:
+            self.get_logger().error(f"Failed to load image")
+            return
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
+        image_msg.header.stamp = self.get_clock().now().to_msg()
+        image_msg.header.frame_id = "0.2"
+        self.publisher_test.publish(image_msg)
+        self.get_logger().info("Published preprocessed test image to /preprocessed_image")
+
+        time.sleep(15)  # Wait 5 seconds before publishing
+        cv_image = cv2.imread('test/stop.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
+        if cv_image is None:
+            self.get_logger().error(f"Failed to load image")
+            return
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
+        image_msg.header.stamp = self.get_clock().now().to_msg()
+        image_msg.header.frame_id = "0.2"
+        self.publisher_test.publish(image_msg)
+        self.get_logger().info("Published preprocessed test image to /preprocessed_image")
+
+
+        # time.sleep(20)
+        # self.get_image(image_path2)
+        # self.process_and_publish(image_path)
 
     def get_image(self, image_path):
         f = open(image_path, "r")
