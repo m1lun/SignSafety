@@ -29,6 +29,7 @@ class RecognitionNode(Node):
 
         self.model = tf.keras.models.load_model('models/model1')
         self.input_shape = self.model.input_shape[1:3] # this is (H, W)
+        self.supported_indices = [0, 1, 2, 3, 4, 5, 7, 8, 13, 14]
         self.labels = ['SPEED_LIMIT;20', 'SPEED_LIMIT;30', 'SPEED_LIMIT;50', 'SPEED_LIMIT;60', 'SPEED_LIMIT;70', 'SPEED_LIMIT;80', 'SPEED_LIMIT;100', 'SPEED_LIMIT;120', 'YIELD', 'STOP'] # Add more once these are working
 
         self.prob_threshold = 0.98
@@ -57,22 +58,16 @@ class RecognitionNode(Node):
 
             if max_prob < self.prob_threshold:
                 recognized_sign = "unknown"
-                self.get_logger().info(f"Index is unknown with prob {max_prob}")
+                self.get_logger().info(f"Index is {recognized_label_index} with (low) prob {max_prob}")
                 return
-            else:
-                recognized_sign = self.labels[recognized_label_index]
-                self.get_logger().info(f"Index is {recognized_label_index} with prob {max_prob}")
-           
-            if recognized_label_index >= len(self.labels):
-                self.get_logger().warning(f"Index {recognized_label_index} is out of bounds. Sign not supported.")
+                
+            if recognized_label_index not in self.supported_indices:
+                self.get_logger().warning(f"Index {recognized_label_index} is out of bounds or unsupported. Sign not recognized.")
                 recognized_sign = "unknown"
                 return
-            else:
-                recognized_sign = self.labels[recognized_label_index]
 
-            # extract distance
+            recognized_sign = self.labels[self.supported_indices.index(recognized_label_index)]
             distance = float(msg.header.frame_id) if msg.header.frame_id else 0.0
-
             self.publish_sign(recognized_sign, distance)
         except Exception as e:
             self.get_logger().error(f"Error processing image: {e}")
