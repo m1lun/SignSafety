@@ -32,6 +32,10 @@ class ImageProcessorNode(Node):
         self.get_image(image_path2)
         self.process_and_publish(image_path)
 
+        time.sleep(1)
+        self.get_image(image_path2)
+        self.process_and_publish(image_path)
+
     def get_image(self, image_path):
         f = open(image_path, "r")
         pattern = re.compile(r"\d+")

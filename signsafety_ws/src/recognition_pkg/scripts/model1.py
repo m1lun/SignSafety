@@ -47,6 +47,8 @@ def preprocess_data(data, image_dir, input_shape):
 # Define input resolution (matching the model's expected input)
 input_shape = (32, 32)
 
+X, y = preprocess_data(data, train_images_dir, input_shape)
+
 # Classes currently supported from data set
 supported_classes = [0, 1, 2, 3, 4, 5, 7, 8, 13, 14]
 
@@ -85,8 +87,7 @@ plt.legend()
 plt.show()
 
 # Save the model
-model_save_path = os.path.join("models", "model1")
+model_save_path = os.path.join("models", "modelbest")
 os.makedirs(model_save_path, exist_ok=True)
-model.save("models/model1")
+model.save("models/modelbest")
 print(f"Model saved to {model_save_path}")
-

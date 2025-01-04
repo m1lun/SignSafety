@@ -27,7 +27,8 @@ class RecognitionNode(Node):
 
         self.bridge = CvBridge()
 
-        self.model = tf.keras.models.load_model('models/model1')
+        self.modelnum = 4
+        self.model = tf.keras.models.load_model(f"models/model{self.modelnum}")
         self.input_shape = self.model.input_shape[1:3] # this is (H, W)
         self.supported_indices = [0, 1, 2, 3, 4, 5, 7, 8, 13, 14]
         self.labels = ['SPEED_LIMIT;20', 'SPEED_LIMIT;30', 'SPEED_LIMIT;50', 'SPEED_LIMIT;60', 'SPEED_LIMIT;70', 'SPEED_LIMIT;80', 'SPEED_LIMIT;100', 'SPEED_LIMIT;120', 'YIELD', 'STOP'] # Add more once these are working
@@ -68,6 +69,7 @@ class RecognitionNode(Node):
 
             recognized_sign = self.labels[self.supported_indices.index(recognized_label_index)]
             distance = float(msg.header.frame_id) if msg.header.frame_id else 0.0
+            self.get_logger().info(f"Index is {recognized_label_index} with prob {max_prob}")
             self.publish_sign(recognized_sign, distance)
         except Exception as e:
             self.get_logger().error(f"Error processing image: {e}")
