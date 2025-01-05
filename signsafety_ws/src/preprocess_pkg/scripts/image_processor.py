@@ -84,7 +84,7 @@ class ImageProcessorNode(Node):
 
     def process_and_publish(self, image_path):
         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-        image_copy = image.copy()
+        original_img = image.copy()
         if image is None:
             self.get_logger().error(f"Error: Unable to load image at {image_path}")
             return
@@ -106,7 +106,7 @@ class ImageProcessorNode(Node):
 
                 # Crop the ROI and store it
                 cropped_rectangle = image[y:y+h, x:x+w]
-                output_path = os.path.join(r'test/pre_output', f"cropped_rectangle_{i + 1}.png")
+                output_path = os.path.join(r'/sim_ws/src/trial', f"cropped_rectangle_{i + 1}.png")
                 cv2.imwrite(output_path, cropped_rectangle)
                 print(f"Saved cropped image {i + 1} to {output_path}")
                 cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGRA2RGB)
@@ -124,55 +124,61 @@ class ImageProcessorNode(Node):
                 self.publisher_.publish(ros_image)
                 self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
 
+        # Resize the image
+        resized_img = cv2.resize(original_img, (0, 0), fx=1.4, fy=1.4)
 
-        # Ensure blur_kernel is odd
-        blur_kernel = max(3, self.blur_kernel | 1)  # Make it odd and at least 3
+        # Convert to grayscale
+        gray = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
+        gray_blurred = cv2.blur(gray, (3, 3))
 
-        # Resize scale factor
-        resize_factor = max(self.scale / 100, 0.01)
+        # Apply Hough Circle Transform
+        circles = cv2.HoughCircles(
+            gray_blurred,
+            cv2.HOUGH_GRADIENT,
+            dp=1,
+            minDist=self.min_dist,
+            param1=self.param1,
+            param2=self.param2,
+            minRadius=self.min_radius,
+            maxRadius=self.max_radius
+        )
 
-        # Apply Gaussian Blur
-        blurred_image = cv2.GaussianBlur(image_copy, (blur_kernel, blur_kernel), 1.4)
-
-        # Apply Canny edge detection
-        edges = cv2.Canny(blurred_image, self.canny_low, self.canny_high)
-
-        # Apply threshold
-        _, threshold = cv2.threshold(edges, self.threshold_value, 255, cv2.THRESH_BINARY)
-
-        # Find contours
-        contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-        for i, contour in enumerate(contours):
-            # Skip the first contour which is the whole image
-            if i == 0:
-                continue
-
-            # Approximate the contour
-            approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
-
-            # Highlight quadrilaterals
-            if len(approx) == 4:  # Check if the contour has 4 vertices
-
-                # Get the bounding box and crop
-                x, y, w, h = cv2.boundingRect(approx)
-                cropped_rectangle = image_copy[y:y+h, x:x+w]
-                cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGRA2RGB)
-                cropped_height, cropped_width, _ = cropped_rectangle_rgb.shape
-                ros_image = self.bridge.cv2_to_imgmsg(cropped_rectangle_rgb, encoding='rgb8')
+        # Display and process the results
+        output = resized_img.copy()
+        if circles is not None:
+            circles = np.uint16(np.around(circles))
+            for idx, pt in enumerate(circles[0, :]):
+                a, b, r = pt[0], pt[1], pt[2]
+                cv2.circle(output, (a, b), r, (0, 255, 0), 2)
+                cv2.circle(output, (a, b), 1, (0, 0, 255), 3)
+                
+                # Crop the circle
+                x, y, w, h = a - r, b - r, 2 * r, 2 * r
+                cropped_circle = resized_img[y:y+h, x:x+w]
+                
+                # Create a mask for the circle
+                mask = np.zeros((h, w), dtype=np.uint8)
+                cv2.circle(mask, (r, r), r, 255, -1)
+                
+                # Apply the mask to the cropped circle
+                cropped_circle_masked = cv2.bitwise_and(cropped_circle, cropped_circle, mask=mask)
+                
+                # Convert to ROS image and publish
+                cropped_circle_rgb = cv2.cvtColor(cropped_circle_masked, cv2.COLOR_BGRA2RGB)
+                cropped_height, cropped_width, _ = cropped_circle_rgb.shape
+                ros_image = self.bridge.cv2_to_imgmsg(cropped_circle_rgb, encoding='rgb8')
                 ros_image.height = cropped_height
                 ros_image.width = cropped_width
-                ros_image.step = len(cropped_rectangle_rgb[0]) * cropped_rectangle_rgb.shape[2]  # Width * channels
-                ros_image.data = cropped_rectangle_rgb.tobytes()
+                ros_image.step = cropped_width * 3  # Width * channels (RGB has 3 channels)
+                ros_image.data = cropped_circle_rgb.tobytes()
                 ros_image.is_bigendian = 0  # Assuming little-endian
-                ros_image.header.frame_id = str(10)
+                ros_image.header.frame_id = str(idx)
                 ros_image.header.stamp = self.get_clock().now().to_msg()
                 self.publisher_.publish(ros_image)
-                self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
+                self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
 
-                # # Save the cropped image to disk
-                # output_path = os.path.join(r'/sim_ws/src', f"croppedssss_image_{i}.png")
-                # cv2.imwrite(output_path, cropped_rectangle)
+                # Save the cropped circle image for reference
+                cv2.imwrite(f'Cropped_Circle_{idx}.png', cropped_circle_masked)
         
 def main(args=None):
     rclpy.init(args=args)
