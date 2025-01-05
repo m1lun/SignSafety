@@ -5,6 +5,8 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <chrono>  // For delays
+#include <thread>  // For sleep
 
 #define FOV_RANGE 75                 // Points outside this range (in degrees) will be disregarded
 #define LONGEST_RANGE_THRESHOLD 7.0  // Points further than this threshold will be truncated to the threshold
@@ -43,14 +45,27 @@ private:
     // Process STOP sign logic
     void process_STOP(const std::string &data) {
         try {
-            // Parse distance from the topic data (e.g., "STOP;0.75")
             float distance_to_sign = std::stof(data.substr(data.find(";") + 1));
-
             const float stopping_threshold = 0.5;
 
             if (distance_to_sign <= stopping_threshold) {
                 stop_ = true;
                 RCLCPP_INFO(this->get_logger(), "STOP sign detected within %.2f meters. Stopping the car.", distance_to_sign);
+
+                // Stop the car
+                publish_drive_message(0.0, 0.0);
+
+                // Wait for obstacles to clear
+                const float obstacle_detection_fov = 30.0;  // Degrees (±30°)
+                const float obstacle_threshold = 1.0;       // Meters (distance to consider an obstacle)
+
+                while (stop_ && !is_path_clear(obstacle_detection_fov, obstacle_threshold)) {
+                    RCLCPP_INFO(this->get_logger(), "Obstacle detected. Waiting...");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));  // Wait and rescan
+                }
+
+                RCLCPP_INFO(this->get_logger(), "Path clear. Proceeding...");
+                stop_ = false;  // Proceed when clear
             } else {
                 RCLCPP_INFO(this->get_logger(), "STOP sign detected at %.2f meters. Approaching...", distance_to_sign);
             }
@@ -58,6 +73,25 @@ private:
             RCLCPP_WARN(this->get_logger(), "Failed to parse STOP sign data: %s", e.what());
         }
     }
+
+    // Check if the path is clear within a specific FOV
+    bool is_path_clear(float fov_degrees, float obstacle_threshold) {
+        float fov_radians = fov_degrees * M_PI / 180.0;
+        int start_index = static_cast<int>((-fov_radians - angle_min_) / angle_increment_);
+        int end_index = static_cast<int>((fov_radians - angle_min_) / angle_increment_);
+
+        start_index = std::max(0, start_index);
+        end_index = std::min(static_cast<int>(scan_ranges_.size()), end_index);
+
+        // Check for obstacles within the specified FOV
+        for (int i = start_index; i <= end_index; ++i) {
+            if (scan_ranges_[i] > 0.0 && scan_ranges_[i] < obstacle_threshold) {
+                return false;  // Obstacle detected
+            }
+        }
+        return true;  // Path is clear
+    }
+
     // Process SPEED_LIMIT sign logic
     void process_SPEED_LIMIT(const std::string &data) {
         try {
@@ -98,6 +132,8 @@ private:
 
     // Callback function for LIDAR data processing
     void lidar_callback(const sensor_msgs::msg::LaserScan::SharedPtr data) {
+        scan_ranges_ = preprocess_lidar(data->ranges);
+
         if (stop_) {
             publish_drive_message(0.0, 0.0); // Stop the car
             return;
@@ -241,6 +277,8 @@ private:
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sign_subscription_;
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_;
 
+    std::vector<float> scan_ranges_;  // Store the processed LIDAR ranges
+    
     float max_angle_, angle_min_, angle_increment_, scan_ranges_max_, car_width_, speed_limit_;
     bool stop_;
 };
