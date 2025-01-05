@@ -172,7 +172,7 @@ class ImageProcessorNode(Node):
                 ros_image.step = cropped_width * 3  # Width * channels (RGB has 3 channels)
                 ros_image.data = cropped_circle_rgb.tobytes()
                 ros_image.is_bigendian = 0  # Assuming little-endian
-                ros_image.header.frame_id = str(idx)
+                ros_image.header.frame_id = str(10)
                 ros_image.header.stamp = self.get_clock().now().to_msg()
                 self.publisher_.publish(ros_image)
                 self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
