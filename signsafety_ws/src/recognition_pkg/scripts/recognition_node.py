@@ -27,7 +27,7 @@ class RecognitionNode(Node):
 
         self.bridge = CvBridge()
 
-        self.modelnum = 2
+        self.modelnum = 3
         self.model = tf.keras.models.load_model(f"models/model{self.modelnum}")
         self.input_shape = self.model.input_shape[1:3] # this is (H, W)
         self.supported_indices = [0, 1, 2, 3, 4, 5, 7, 8, 13, 14]
