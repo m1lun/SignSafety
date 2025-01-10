@@ -47,13 +47,13 @@ class ImageProcessorNode(Node):
         image_path = r"test/test.png"
         image_path2 = r"src/preprocess_pkg/output.txt"
 
-        time.sleep(10)
-        image = cv2.imread(image_path)
-        if image is None:
-            self.get_logger().error(f"Failed to load image from {image_path}")
-            return
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        self.process_and_publish(image)
+        #time.sleep(10)
+        #image = cv2.imread(image_path)
+        #if image is None:
+        #   self.get_logger().error(f"Failed to load image from {image_path}")
+        #   return
+        #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        #self.process_and_publish(image)
 
         # time.sleep(1)
         # self.get_image(image_path2)
@@ -125,7 +125,8 @@ class ImageProcessorNode(Node):
                 ros_image = self.bridge.cv2_to_imgmsg(cropped_rectangle_rgb, encoding='rgb8')
                 ros_image.height = cropped_height
                 ros_image.width = cropped_width
-                ros_image.step = len(cropped_rectangle_rgb[0]) * cropped_rectangle_rgb.shape[2]  # Width * channels
+                #ros_image.step = len(cropped_rectangle_rgb[0]) * cropped_rectangle_rgb.shape[2]  # Width * channels
+                ros_image.step = cropped_width * 3 # Width * channels
                 ros_image.data = cropped_rectangle_rgb.tobytes()
                 ros_image.is_bigendian = 0  # Assuming little-endian
                 ros_image.header.frame_id = str(10)
@@ -137,7 +138,7 @@ class ImageProcessorNode(Node):
                 cv2.imshow("CROPPED RECTANGLE", cropped_rectangle)
 
         # Resize the image
-        resized_img = cv2.resize(original_img, (0, 0), fx=1.4, fy=1.4)
+        resized_img = cv2.resize(original_img, (0, 0), fx=1.0, fy=1.0)
 
         # Convert to grayscale
         gray = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
@@ -193,6 +194,7 @@ class ImageProcessorNode(Node):
                 ros_image.header.frame_id = str(idx)
                 ros_image.header.stamp = self.get_clock().now().to_msg()
                 self.publisher_.publish(ros_image)
+                cv2.imshow("CROPPED CIRCLE", cropped_circle_rgb)
                 self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
 
 
@@ -203,14 +205,14 @@ class ImageProcessorNode(Node):
         current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2RGB)
         cv2.imshow("RGB", current_frame)
         self.process_and_publish(current_frame)
-        time.sleep(0.1)  # Wait 51seconds before publishing
+        #time.sleep(0.1)  # Wait 51seconds before publishing
         cv2.waitKey(1)
 
     def depth_callback(self, data):
         #self.get_logger().warning("Receiving depth data")
         current_frame = self.bridge.imgmsg_to_cv2(data)
         cv2.imshow("DEPTH", current_frame)
-        time.sleep(0.1)  # Wait 1 seconds before publishing
+        #time.sleep(0.1)  # Wait 1 seconds before publishing
         cv2.waitKey(1)
         
 def main(args=None):
