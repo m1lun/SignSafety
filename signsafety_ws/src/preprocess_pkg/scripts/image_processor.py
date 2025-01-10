@@ -2,6 +2,7 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from std_msgs.msg import Float32
 import cv2
 import numpy as np
 from cv_bridge import CvBridge
@@ -13,9 +14,27 @@ from PIL import Image as PILImage  # Rename the imported Image from PIL
 class ImageProcessorNode(Node):
     def __init__(self):
         super().__init__('image_processor')
+
+        # Topic for images
+        rgb_topic = '/camera/camera/color/image_raw'
+        depth_topic = '/camera/camera/depth/image_rect_raw'
+
+
         self.publisher_ = self.create_publisher(Image, 'preprocessed_image', 10)
         self.publisher_test = self.create_publisher(Image, 'preprocessed_image', 10) 
+   
+        # Setup for the image cropping
+        self.min_dist = 480 / 8
+        self.param1 = 100
+        self.param2 = 30
+        self.min_radius = 1
+        self.max_radius = 30
+
+        # Subscribe to image topic
+        self.rgb_subscriber = self.create_subscription(Image, rgb_topic, self.rgb_callback, 10)
+        self.depth_subcriber = self.create_subscription(Image, depth_topic, self.depth_callback, 10)
         self.bridge = CvBridge()
+
         # self.TOP_X_PADDING = 7
         # self.TOP_Y_PADDING = 3
         # self.BOTTOM_X_PADDING = 24
@@ -28,7 +47,7 @@ class ImageProcessorNode(Node):
         image_path = r"test/test.png"
         image_path2 = r"src/preprocess_pkg/output.txt"
 
-        time.sleep(10)  # Wait 5 seconds before publishing
+        time.sleep(5)  # Wait 5 seconds before publishing
         cv_image = cv2.imread('test/croppedspeed.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
         if cv_image is None:
             self.get_logger().error(f"Failed to load image")
@@ -37,8 +56,8 @@ class ImageProcessorNode(Node):
         image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
         image_msg.header.stamp = self.get_clock().now().to_msg()
         image_msg.header.frame_id = "0.2"
-        self.publisher_test.publish(image_msg)
-        self.get_logger().info("Published preprocessed test image to /preprocessed_image")
+        #self.publisher_test.publish(image_msg)
+        #self.get_logger().info("Published preprocessed test image to /preprocessed_image")
 
         # time.sleep(20)
         # self.get_image(image_path2)
@@ -82,8 +101,8 @@ class ImageProcessorNode(Node):
         image.save(output_path)
         print(f"New image saved as {output_path}")
 
-    def process_and_publish(self, image_path):
-        image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    def process_and_publish(self, image):
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         original_img = image.copy()
         if image is None:
             self.get_logger().error(f"Error: Unable to load image at {image_path}")
@@ -106,10 +125,10 @@ class ImageProcessorNode(Node):
 
                 # Crop the ROI and store it
                 cropped_rectangle = image[y:y+h, x:x+w]
-                output_path = os.path.join(r'/sim_ws/src/trial', f"cropped_rectangle_{i + 1}.png")
+                output_path = os.path.join(r'/home/althaaf/SignSafety/signsafety_ws/test/pre_output', f"cropped_rectangle_{i + 1}.png")
                 cv2.imwrite(output_path, cropped_rectangle)
-                print(f"Saved cropped image {i + 1} to {output_path}")
-                cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGRA2RGB)
+                #print(f"Saved cropped image {i + 1} to {output_path}")
+                cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGR2RGB)
                 cropped_height, cropped_width, _ = cropped_rectangle_rgb.shape
                 ros_image = self.bridge.cv2_to_imgmsg(cropped_rectangle_rgb, encoding='rgb8')
                 ros_image.height = cropped_height
@@ -122,7 +141,8 @@ class ImageProcessorNode(Node):
 
                 # Publish the cropped image
                 self.publisher_.publish(ros_image)
-                self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
+                #self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
+                cv2.imshow("CROPPED RECTANGLE", cropped_rectangle)
 
         # Resize the image
         resized_img = cv2.resize(original_img, (0, 0), fx=1.4, fy=1.4)
@@ -164,7 +184,7 @@ class ImageProcessorNode(Node):
                 cropped_circle_masked = cv2.bitwise_and(cropped_circle, cropped_circle, mask=mask)
                 
                 # Convert to ROS image and publish
-                cropped_circle_rgb = cv2.cvtColor(cropped_circle_masked, cv2.COLOR_BGRA2RGB)
+                cropped_circle_rgb = cv2.cvtColor(cropped_circle_masked, cv2.COLOR_BGR2RGB)
                 cropped_height, cropped_width, _ = cropped_circle_rgb.shape
                 ros_image = self.bridge.cv2_to_imgmsg(cropped_circle_rgb, encoding='rgb8')
                 ros_image.height = cropped_height
@@ -175,10 +195,28 @@ class ImageProcessorNode(Node):
                 ros_image.header.frame_id = str(10)
                 ros_image.header.stamp = self.get_clock().now().to_msg()
                 self.publisher_.publish(ros_image)
-                self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
+                #self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
 
                 # Save the cropped circle image for reference
-                cv2.imwrite(f'Cropped_Circle_{idx}.png', cropped_circle_masked)
+                cv2.imwrite(f'/home/althaaf/SignSafety/signsafety_ws/test/pre_output/Cropped_Circle_{idx}.png', cropped_circle_masked)
+                cv2.imshow("CROPPED CIRCLE", cropped_circle_masked)
+
+    def rgb_callback(self, data):
+        #self.get_logger().warning("Receiving RGB data")
+        current_frame = self.bridge.imgmsg_to_cv2(data)
+        # Convert to RGB since cv2 default is BGR when reading
+        current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2RGB)
+        cv2.imshow("RGB", current_frame)
+        self.process_and_publish(current_frame)
+        time.sleep(0.1)  # Wait 51seconds before publishing
+        cv2.waitKey(1)
+
+    def depth_callback(self, data):
+        #self.get_logger().warning("Receiving depth data")
+        current_frame = self.bridge.imgmsg_to_cv2(data)
+        cv2.imshow("DEPTH", current_frame)
+        time.sleep(0.1)  # Wait 1 seconds before publishing
+        cv2.waitKey(1)
         
 def main(args=None):
     rclpy.init(args=args)
