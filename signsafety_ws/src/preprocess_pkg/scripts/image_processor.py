@@ -47,21 +47,13 @@ class ImageProcessorNode(Node):
         image_path = r"test/test.png"
         image_path2 = r"src/preprocess_pkg/output.txt"
 
-        time.sleep(5)  # Wait 5 seconds before publishing
-        cv_image = cv2.imread('test/croppedspeed.png', cv2.IMREAD_COLOR)  # Load as a color image (BGR format)
-        if cv_image is None:
-            self.get_logger().error(f"Failed to load image")
+        time.sleep(10)
+        image = cv2.imread(image_path)
+        if image is None:
+            self.get_logger().error(f"Failed to load image from {image_path}")
             return
-        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-        image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
-        image_msg.header.stamp = self.get_clock().now().to_msg()
-        image_msg.header.frame_id = "0.2"
-        #self.publisher_test.publish(image_msg)
-        #self.get_logger().info("Published preprocessed test image to /preprocessed_image")
-
-        # time.sleep(20)
-        # self.get_image(image_path2)
-        # self.process_and_publish(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        self.process_and_publish(image)
 
         # time.sleep(1)
         # self.get_image(image_path2)
@@ -125,7 +117,7 @@ class ImageProcessorNode(Node):
 
                 # Crop the ROI and store it
                 cropped_rectangle = image[y:y+h, x:x+w]
-                output_path = os.path.join(r'/home/althaaf/SignSafety/signsafety_ws/test/pre_output', f"cropped_rectangle_{i + 1}.png")
+                output_path = os.path.join(r'test/pre_output', f"cropped_rectangle_{i + 1}.png")
                 cv2.imwrite(output_path, cropped_rectangle)
                 #print(f"Saved cropped image {i + 1} to {output_path}")
                 cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGR2RGB)
@@ -202,6 +194,7 @@ class ImageProcessorNode(Node):
                 ros_image.header.stamp = self.get_clock().now().to_msg()
                 self.publisher_.publish(ros_image)
                 self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
+
 
     def rgb_callback(self, data):
         #self.get_logger().warning("Receiving RGB data")
