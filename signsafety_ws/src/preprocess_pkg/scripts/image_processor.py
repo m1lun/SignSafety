@@ -56,8 +56,8 @@ class ImageProcessorNode(Node):
         image_msg = self.bridge.cv2_to_imgmsg(cv_image, encoding="rgb8")
         image_msg.header.stamp = self.get_clock().now().to_msg()
         image_msg.header.frame_id = "0.2"
-        self.publisher_test.publish(image_msg)
-        self.get_logger().info("Published preprocessed test image to /preprocessed_image")
+        #self.publisher_test.publish(image_msg)
+        #self.get_logger().info("Published preprocessed test image to /preprocessed_image")
 
         # time.sleep(20)
         # self.get_image(image_path2)
@@ -125,10 +125,10 @@ class ImageProcessorNode(Node):
 
                 # Crop the ROI and store it
                 cropped_rectangle = image[y:y+h, x:x+w]
-                output_path = os.path.join(r'/test/pre_output', f"cropped_rectangle_{i + 1}.png")
+                output_path = os.path.join(r'/home/althaaf/SignSafety/signsafety_ws/test/pre_output', f"cropped_rectangle_{i + 1}.png")
                 cv2.imwrite(output_path, cropped_rectangle)
-                print(f"Saved cropped image {i + 1} to {output_path}")
-                cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGRA2RGB)
+                #print(f"Saved cropped image {i + 1} to {output_path}")
+                cropped_rectangle_rgb = cv2.cvtColor(cropped_rectangle, cv2.COLOR_BGR2RGB)
                 cropped_height, cropped_width, _ = cropped_rectangle_rgb.shape
                 ros_image = self.bridge.cv2_to_imgmsg(cropped_rectangle_rgb, encoding='rgb8')
                 ros_image.height = cropped_height
@@ -141,7 +141,7 @@ class ImageProcessorNode(Node):
 
                 # Publish the cropped image
                 self.publisher_.publish(ros_image)
-                self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
+                #self.get_logger().info(f"Published image {i + 1} of {len(contours)}")
                 cv2.imshow("CROPPED RECTANGLE", cropped_rectangle)
 
         # Resize the image
@@ -184,7 +184,7 @@ class ImageProcessorNode(Node):
                 cropped_circle_masked = cv2.bitwise_and(cropped_circle, cropped_circle, mask=mask)
                 
                 # Convert to ROS image and publish
-                cropped_circle_rgb = cv2.cvtColor(cropped_circle_masked, cv2.COLOR_BGRA2RGB)
+                cropped_circle_rgb = cv2.cvtColor(cropped_circle_masked, cv2.COLOR_BGR2RGB)
                 cropped_height, cropped_width, _ = cropped_circle_rgb.shape
                 ros_image = self.bridge.cv2_to_imgmsg(cropped_circle_rgb, encoding='rgb8')
                 ros_image.height = cropped_height
@@ -195,25 +195,27 @@ class ImageProcessorNode(Node):
                 ros_image.header.frame_id = str(10)
                 ros_image.header.stamp = self.get_clock().now().to_msg()
                 self.publisher_.publish(ros_image)
-                self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
+                #self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
 
                 # Save the cropped circle image for reference
-                cv2.imwrite(f'test/pre_output/Cropped_Circle_{idx}.png', cropped_circle_masked)
+                cv2.imwrite(f'/home/althaaf/SignSafety/signsafety_ws/test/pre_output/Cropped_Circle_{idx}.png', cropped_circle_masked)
                 cv2.imshow("CROPPED CIRCLE", cropped_circle_masked)
 
     def rgb_callback(self, data):
-        self.get_logger().warning("Receiving RGB data")
+        #self.get_logger().warning("Receiving RGB data")
         current_frame = self.bridge.imgmsg_to_cv2(data)
         # Convert to RGB since cv2 default is BGR when reading
         current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2RGB)
         cv2.imshow("RGB", current_frame)
         self.process_and_publish(current_frame)
+        time.sleep(0.1)  # Wait 51seconds before publishing
         cv2.waitKey(1)
 
     def depth_callback(self, data):
-        self.get_logger().warning("Receiving depth data")
+        #self.get_logger().warning("Receiving depth data")
         current_frame = self.bridge.imgmsg_to_cv2(data)
         cv2.imshow("DEPTH", current_frame)
+        time.sleep(0.1)  # Wait 1 seconds before publishing
         cv2.waitKey(1)
         
 def main(args=None):
