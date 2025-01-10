@@ -176,15 +176,21 @@ class ImageProcessorNode(Node):
                 x, y, w, h = a - r, b - r, 2 * r, 2 * r
                 cropped_circle = resized_img[y:y+h, x:x+w]
                 
-                # Create a mask for the circle
-                mask = np.zeros((h, w), dtype=np.uint8)
-                cv2.circle(mask, (r, r), r, 255, -1)
+                # Define padding
+                padding = 10  # Adjust the padding value as needed
                 
-                # Apply the mask to the cropped circle
-                cropped_circle_masked = cv2.bitwise_and(cropped_circle, cropped_circle, mask=mask)
+                # Crop the circle with padding
+                x = max(a - r - padding, 0)
+                y = max(b - r - padding, 0)
+                w = min(a + r + padding, resized_img.shape[1]) - x
+                h = min(b + r + padding, resized_img.shape[0]) - y
+                cropped_circle = resized_img[y:y+h, x:x+w]
+                
+                # Save the cropped rectangle with padding
+                cv2.imwrite(f'Cropped_Circle_{idx}.png', cropped_circle)
                 
                 # Convert to ROS image and publish
-                cropped_circle_rgb = cv2.cvtColor(cropped_circle_masked, cv2.COLOR_BGR2RGB)
+                cropped_circle_rgb = cv2.cvtColor(cropped_circle, cv2.COLOR_BGRA2RGB)
                 cropped_height, cropped_width, _ = cropped_circle_rgb.shape
                 ros_image = self.bridge.cv2_to_imgmsg(cropped_circle_rgb, encoding='rgb8')
                 ros_image.height = cropped_height
@@ -192,14 +198,10 @@ class ImageProcessorNode(Node):
                 ros_image.step = cropped_width * 3  # Width * channels (RGB has 3 channels)
                 ros_image.data = cropped_circle_rgb.tobytes()
                 ros_image.is_bigendian = 0  # Assuming little-endian
-                ros_image.header.frame_id = str(10)
+                ros_image.header.frame_id = str(idx)
                 ros_image.header.stamp = self.get_clock().now().to_msg()
                 self.publisher_.publish(ros_image)
-                #self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
-
-                # Save the cropped circle image for reference
-                cv2.imwrite(f'/home/althaaf/SignSafety/signsafety_ws/test/pre_output/Cropped_Circle_{idx}.png', cropped_circle_masked)
-                cv2.imshow("CROPPED CIRCLE", cropped_circle_masked)
+                self.get_logger().info(f"Published circle image {idx + 1} of {len(circles[0])}")
 
     def rgb_callback(self, data):
         #self.get_logger().warning("Receiving RGB data")
